@@ -8,7 +8,7 @@ import { FC, useCallback, useEffect, useState } from "react"
 import idl from "../../target/idl/anchor_counter.json"
 import { Button, HStack, VStack, Text } from "@chakra-ui/react"
 
-const PROGRAM_ID = `6c8qcmzstWEFYrCvn4mcBpWW7tKqvji49dxWBtpipxam`
+const PROGRAM_ID = `Gmr9XQUwL5T9KdDw2Aaude5QyiELrG7E7rq83r886zpV`
 
 export interface Props {
   counter
