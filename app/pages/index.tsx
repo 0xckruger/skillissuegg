@@ -15,6 +15,7 @@ import {
   Stack,
   Link,
 } from "@chakra-ui/react"
+import NextLink from "next/link";
 
 const Home: NextPage = (props) => {
   const [counter, setCounter] = useState("")
@@ -30,6 +31,11 @@ const Home: NextPage = (props) => {
         <Stack w="full" h="calc(100vh)" justify="center">
           <AppBar />
           <div className={styles.AppBody}>
+            <NextLink href="/pong" passHref>
+              <Button as="a" colorScheme="blue" mt={4}>
+                Play Pong
+              </Button>
+            </NextLink>
             {wallet.connected ? (
               counter ? (
                 <VStack>
