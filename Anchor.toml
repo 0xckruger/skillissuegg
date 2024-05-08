@@ -6,6 +6,7 @@ skip-lint = false
 
 [programs.localnet]
 anchor_counter = "Gmr9XQUwL5T9KdDw2Aaude5QyiELrG7E7rq83r886zpV"
+tictactoe = "39YeZsrCamsEh4rjrqGZ74iqEdUwSJAWZhdtkQdP6Tae"
 
 [registry]
 url = "https://api.apr.dev"
