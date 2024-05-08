@@ -1571,6 +1571,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "tictactoe"
+version = "0.1.0"
+dependencies = [
+ "anchor-lang",
+ "num-derive",
+ "num-traits",
+]
+
+[[package]]
 name = "tiny-bip39"
 version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
