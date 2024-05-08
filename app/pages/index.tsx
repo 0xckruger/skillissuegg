@@ -16,6 +16,7 @@ import {
   Link,
 } from "@chakra-ui/react"
 import NextLink from "next/link";
+import { TicTacToe } from "../components/TicTacToe"
 
 const Home: NextPage = (props) => {
   const [counter, setCounter] = useState("")
@@ -23,46 +24,49 @@ const Home: NextPage = (props) => {
   const wallet = useWallet()
 
   return (
-    <div className={styles.App}>
-      <Head>
-        <title>Anchor Frontend Example</title>
-      </Head>
-      <Box h="calc(100vh)" w="full">
-        <Stack w="full" h="calc(100vh)" justify="center">
-          <AppBar />
-          <div className={styles.AppBody}>
-            <NextLink href="/pong" passHref>
-              <Button as="a" colorScheme="blue" mt={4}>
-                Play Pong
-              </Button>
-            </NextLink>
-            {wallet.connected ? (
-              counter ? (
-                <VStack>
-                  <Increment
-                    counter={counter}
-                    setTransactionUrl={setTransactionUrl}
-                  />
-                </VStack>
+      <div className={styles.App}>
+        <Head>
+          <title>Anchor Frontend Example</title>
+        </Head>
+        <Box h="calc(100vh)" w="full">
+          <Stack w="full" h="calc(100vh)" justify="center">
+            <AppBar />
+            <div className={styles.AppBody}>
+              {wallet.connected ? (
+                  <VStack>
+                    <NextLink href="/pong" passHref>
+                      <Button as="a" colorScheme="blue" mt={4}>
+                        Play Pong
+                      </Button>
+                    </NextLink>
+
+                    {counter ? (
+                        <Increment
+                            counter={counter}
+                            setTransactionUrl={setTransactionUrl}
+                        />
+                    ) : (
+                        <Initialize
+                            setCounter={setCounter}
+                            setTransactionUrl={setTransactionUrl}
+                        />
+                    )}
+
+                    <TicTacToe />
+                  </VStack>
               ) : (
-                <Initialize
-                  setCounter={setCounter}
-                  setTransactionUrl={setTransactionUrl}
-                />
-              )
-            ) : (
-              <Text color="white">Connect Wallet</Text>
-            )}
-            <Spacer />
-            {transactionUrl && (
-              <Link href={transactionUrl} color="white" isExternal margin={8}>
-                View most recent transaction
-              </Link>
-            )}
-          </div>
-        </Stack>
-      </Box>
-    </div>
+                  <Text color="white">Connect Wallet</Text>
+              )}
+              <Spacer />
+              {transactionUrl && (
+                  <Link href={transactionUrl} color="white" isExternal margin={8}>
+                    View most recent transaction
+                  </Link>
+              )}
+            </div>
+          </Stack>
+        </Box>
+      </div>
   )
 }
 
