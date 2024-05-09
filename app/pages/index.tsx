@@ -6,6 +6,7 @@ import { Increment } from "../components/Increment"
 import { Initialize } from "../components/Initialize"
 import { useState } from "react"
 import Head from "next/head"
+import Pong from 'react-pong';
 import {
   Spacer,
   VStack,

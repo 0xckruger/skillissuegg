@@ -1,99 +1,119 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
-const Pong: React.FC = () => {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-
-  const [ball, setBall] = useState({ x: 0, y: 0, dx: 2, dy: 2, radius: 10 });
-  const [paddle, setPaddle] = useState({ x: 0, width: 75, height: 10, speed: 5 });
-  const [score, setScore] = useState(0);
-
-  const drawBall = (ctx: CanvasRenderingContext2D) => {
-    ctx.beginPath();
-    ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
-    ctx.fillStyle = "#FFFFFF";
-    ctx.fill();
-    ctx.closePath();
-  };
-
-  const drawPaddle = (ctx: CanvasRenderingContext2D) => {
-    ctx.beginPath();
-    ctx.rect(paddle.x, canvasRef.current!.height - paddle.height, paddle.width, paddle.height);
-    ctx.fillStyle = "#FFFFFF";
-    ctx.fill();
-    ctx.closePath();
-  };
-
-  const drawScore = (ctx: CanvasRenderingContext2D) => {
-    ctx.font = "16px Arial";
-    ctx.fillStyle = "#FFFFFF";
-    ctx.fillText(`Score: ${score}`, 8, 20);
-  };
-
-  const draw = () => {
-    const canvas = canvasRef.current;
-    const ctx = canvas!.getContext('2d')!;
-
-    // Set background color to black
-    ctx.fillStyle = "#000000";
-    ctx.fillRect(0, 0, canvas!.width, canvas!.height);
-
-    drawBall(ctx);
-    drawPaddle(ctx);
-    drawScore(ctx);
-
-    const isHittingLeftOrRightWall = ball.x + ball.dx > canvas!.width - ball.radius || ball.x + ball.dx < ball.radius;
-    if (isHittingLeftOrRightWall) {
-      setBall(ball => ({ ...ball, dx: -ball.dx }));
-    }
-
-    const isHittingTopWall = ball.y + ball.dy < ball.radius;
-    if (isHittingTopWall) {
-      setBall(ball => ({ ...ball, dy: -ball.dy }));
-    } else {
-      const isHittingBottomWall = ball.y + ball.dy > canvas!.height - ball.radius;
-      if (isHittingBottomWall) {
-        const isHittingPaddle = ball.x > paddle.x && ball.x < paddle.x + paddle.width;
-        if (isHittingPaddle) {
-          setScore(score => score + 1);
-          setBall(ball => ({ ...ball, dy: -ball.dy }));
-        } else {
-          alert("Game Over!");
-          document.location.reload();
-        }
-      }
-    }
-
-    ball.x += ball.dx;
-    ball.y += ball.dy;
-  };
-
-  const movePaddle = (event: KeyboardEvent) => {
-    const isMovingLeft = event.key === 'ArrowLeft' && paddle.x > 0;
-    if (isMovingLeft) {
-      setPaddle(paddle => ({ ...paddle, x: paddle.x - paddle.speed }));
-    } else {
-      const isMovingRight = event.key === 'ArrowRight' && paddle.x < canvasRef.current!.width - paddle.width;
-      if (isMovingRight) {
-        setPaddle(paddle => ({ ...paddle, x: paddle.x + paddle.speed }));
-      }
-    }
-  };
-
+const Pong = () => {
+  const initialBallState = { x: 300, y: 200, speedX: 5, speedY: 5 };
+  const initialPaddleState = { left: 150, right: 150 };
+  const [ball, setBall] = useState(initialBallState);
+  const [paddles, setPaddles] = useState(initialPaddleState);
+  const [gameOver, setGameOver] = useState(false);
+  const [gameRunning, setGameRunning] = useState(false);
+  const ballRef = useRef(null);
   useEffect(() => {
-    const canvas = canvasRef.current;
-    setBall({ ...ball, x: canvas!.width / 2, y: canvas!.height - 30 });
-    setPaddle({ ...paddle, x: (canvas!.width - paddle.width) / 2 });
-
-    const interval = setInterval(draw, 10);
-    document.addEventListener('keydown', movePaddle);
-
-    return () => {
-      clearInterval(interval);
-      document.removeEventListener('keydown', movePaddle);
-    };
-  }, []);
-
-  return <canvas ref={canvasRef} width={800} height={600} />;
-};
-
+    if (gameRunning) {
+      const handleKeyPress = (e) => {
+        switch (e.key) {
+          case 'ArrowUp':
+            setPaddles((prev) => ({ ...prev, right: Math.max(prev.right - 10, 0) }));
+            break;
+          case 'ArrowDown':
+            setPaddles((prev) => ({ ...prev, right: Math.min(prev.right + 10, 300) }));
+            break;
+          case 'w':
+            setPaddles((prev) => ({ ...prev, left: Math.max(prev.left - 10, 0) }));
+            break;
+          case 'd':
+            setPaddles((prev) => ({ ...prev, left: Math.min(prev.left + 10, 300) }));
+            break;
+          default:
+            break;
+        }
+      };
+ 
+      const updateGame = () => {
+        setBall((prevBall) => ({
+          ...prevBall,
+          x: prevBall.x + prevBall.speedX,
+          y: 200,
+        }));
+ 
+        const ballRect = ballRef.current.getBoundingClientRect();
+        const paddleLeftRect = document.getElementById('paddle-left').getBoundingClientRect();
+        const paddleRightRect = document.getElementById('paddle-right').getBoundingClientRect();
+ 
+        // Check for collisions with paddles
+        if (
+          (ballRect.left <= paddleLeftRect.right &&
+            ballRect.right >= paddleLeftRect.left &&
+            ballRect.top <= paddleLeftRect.bottom &&
+            ballRect.bottom >= paddleLeftRect.top) ||
+          (ballRect.left <= paddleRightRect.right &&
+            ballRect.right >= paddleRightRect.left &&
+            ballRect.top <= paddleRightRect.bottom &&
+            ballRect.bottom >= paddleRightRect.top)
+        ) {
+          setBall((prevBall) => ({ ...prevBall, speedX: -prevBall.speedX }));
+        }
+ 
+        // Check for collisions with top and bottom walls
+        if (ball.y <= 0 || ball.y >= 380) {
+          setBall((prevBall) => ({ ...prevBall, speedY: -prevBall.speedY }));
+        }
+ 
+        // Check for game over
+        if (ball.x < 0 || ball.x > 600) {
+          setGameOver(true);
+          pauseGame();
+        }
+      };
+      const intervalId = setInterval(updateGame, 50);
+ 
+      window.addEventListener('keydown', handleKeyPress);
+ 
+      return () => {
+        clearInterval(intervalId);
+        window.removeEventListener('keydown', handleKeyPress);
+      };
+    }
+  }, [gameRunning, ball]);
+ 
+  const startGame = () => {
+    setGameRunning(true);
+  };
+ 
+  const restartGame = () => {
+    setBall(initialBallState);
+    setPaddles(initialPaddleState);
+    setGameOver(false);
+  };
+ 
+  const pauseGame = () => {
+    setGameRunning(false);
+  };
+ 
+  return (
+    <div className="ping-pong-container">
+      <div
+        className={`paddle paddle-left ${gameRunning ? '' : 'paused'}`}
+        id="paddle-left"
+        style={{ top: `${paddles.left}px` }}
+      />
+      <div
+        className={`paddle paddle-right ${gameRunning ? '' : 'paused'}`}
+        id="paddle-right"
+        style={{ top: `${paddles.right}px`, left: '580px' }}
+      />
+      <div
+        className={`ball ${gameRunning ? '' : 'paused'}`}
+        ref={ballRef}
+        style={{ top: `${ball.y}px`, left: `${ball.x}px` }}
+      />
+      <div className="controls">
+        <button onClick={startGame}>Start</button>
+        <button onClick={restartGame}>Restart</button>
+        <button onClick={pauseGame}>Pause</button>
+      </div>
+      {gameOver && <div className="game-over">Game Over</div>}
+    </div>
+  );
+}
 export default Pong;
