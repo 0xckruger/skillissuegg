@@ -13,23 +13,23 @@ async function play(
     expectedBoard: any
 ) {
 
-  await program.methods
-      .play(tile)
-      .accounts({
-        player: player.publicKey,
-        game,
-      })
-      .signers(player instanceof (anchor.Wallet as any) ? [] : [player])
-      .rpc();
+    await program.methods
+        .play(tile)
+        .accounts({
+            player: player.publicKey,
+            game,
+        })
+        .signers(player instanceof (anchor.Wallet as any) ? [] : [player])
+        .rpc();
 
-  const gameState = await program.account.game.fetch(game);
-  expect(gameState.turn).to.equal(expectedTurn);
-  if (gameState.state.won != null) {
-      expect(gameState.state.won.winner.toString()).to.eql(expectedGameState.won.winnerPk.toString())
-  } else {
-      expect(gameState.state).to.eql(expectedGameState);
-  }
-  expect(gameState.board).to.eql(expectedBoard);
+    const gameState = await program.account.game.fetch(game);
+    expect(gameState.turn).to.equal(expectedTurn);
+    if (gameState.state.won != null) {
+        expect(gameState.state.won.winner.toString()).to.eql(expectedGameState.won.winnerPk.toString())
+    } else {
+        expect(gameState.state).to.eql(expectedGameState);
+    }
+    expect(gameState.board).to.eql(expectedBoard);
 }
 
 const createGameAccounts = async (
@@ -69,10 +69,10 @@ const setupGame = async (
 
 
 describe("tictactoe", () => {
-  // Configure the client to use the local cluster.
-  anchor.setProvider(anchor.AnchorProvider.env());
+    // Configure the client to use the local cluster.
+    anchor.setProvider(anchor.AnchorProvider.env());
 
-  const program = anchor.workspace.Tictactoe as Program<Tictactoe>;
+    const program = anchor.workspace.Tictactoe as Program<Tictactoe>;
 
     it("setup game!", async () => {
         const [gameKeypair, playerOne, playerTwo] = await createGameAccounts(program);
@@ -288,70 +288,70 @@ describe("tictactoe", () => {
         )
     });
 
-  it("out of bounds row", async () => {
-      const [gameKeypair, playerOne, playerTwo] = await createGameAccounts(program);
-      await setupGame(program, gameKeypair, playerOne, playerTwo);
+    it("out of bounds row", async () => {
+        const [gameKeypair, playerOne, playerTwo] = await createGameAccounts(program);
+        await setupGame(program, gameKeypair, playerOne, playerTwo);
 
-      try {
-          await play(
-              program,
-              gameKeypair.publicKey,
-              playerTwo,
-              { row: 5, column: 1 }, // ERROR: out of bounds row
-              2,
-              { active: {} },
-              [
-                  [{ x: {} }, { x: {} }, null],
-                  [{ o: {} }, null, null],
-                  [null, null, null],
-              ]
-          );
-          // we use this to make sure we definitely throw an error
-          chai.assert(false, "should've failed but didn't ");
-      } catch (_err) {
-          expect(_err).to.be.instanceOf(AnchorError);
-          const err: AnchorError = _err;
-          expect(err.error.errorCode.number).to.equal(6003);
-      }
-  })
+        try {
+            await play(
+                program,
+                gameKeypair.publicKey,
+                playerTwo,
+                { row: 5, column: 1 }, // ERROR: out of bounds row
+                2,
+                { active: {} },
+                [
+                    [{ x: {} }, { x: {} }, null],
+                    [{ o: {} }, null, null],
+                    [null, null, null],
+                ]
+            );
+            // we use this to make sure we definitely throw an error
+            chai.assert(false, "should've failed but didn't ");
+        } catch (_err) {
+            expect(_err).to.be.instanceOf(AnchorError);
+            const err: AnchorError = _err;
+            expect(err.error.errorCode.number).to.equal(6003);
+        }
+    })
 
-  it("player one attempts to play twice in a row", async() => {
-      const [gameKeypair, playerOne, playerTwo] = await createGameAccounts(program);
-      await setupGame(program, gameKeypair, playerOne, playerTwo);
+    it("player one attempts to play twice in a row", async() => {
+        const [gameKeypair, playerOne, playerTwo] = await createGameAccounts(program);
+        await setupGame(program, gameKeypair, playerOne, playerTwo);
 
-      await play(
-          program,
-          gameKeypair.publicKey,
-          playerOne,
-          { row: 0, column: 0 },
-          2,
-          { active: {} },
-          [
-              [{ x: {} }, null, null],
-              [null, null, null],
-              [null, null, null],
-          ]
-      );
-      try {
-          await play(
-              program,
-              gameKeypair.publicKey,
-              playerOne,
-              {row: 1, column: 1},
-              3,
-              { active: {} },
-              [
-                  [{ x: {} }, null, null],
-                  [null, { x: {} }, null],
-                  [null, null, null],
-              ]
-          );
-          // we use this to make sure we definitely throw an error
-          chai.assert(false, "should've failed but didn't ");
-      } catch (_err) {
-          expect(_err).to.be.instanceOf(AnchorError);
-          const err: AnchorError = _err;
-          expect(err.error.errorCode.number).to.equal(6003);
-      }
-  })
+        await play(
+            program,
+            gameKeypair.publicKey,
+            playerOne,
+            { row: 0, column: 0 },
+            2,
+            { active: {} },
+            [
+                [{ x: {} }, null, null],
+                [null, null, null],
+                [null, null, null],
+            ]
+        );
+        try {
+            await play(
+                program,
+                gameKeypair.publicKey,
+                playerOne,
+                {row: 1, column: 1},
+                3,
+                { active: {} },
+                [
+                    [{ x: {} }, null, null],
+                    [null, { x: {} }, null],
+                    [null, null, null],
+                ]
+            );
+            // we use this to make sure we definitely throw an error
+            chai.assert(false, "should've failed but didn't ");
+        } catch (_err) {
+            expect(_err).to.be.instanceOf(AnchorError);
+            const err: AnchorError = _err;
+            expect(err.error.errorCode.number).to.equal(6003);
+        }
+    })
 });
