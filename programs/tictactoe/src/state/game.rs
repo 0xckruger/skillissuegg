@@ -4,15 +4,16 @@ use num_derive::*;
 use num_traits::*;
 
 #[account]
-pub struct Game {
-    players: [Pubkey; 2],          // (32 * 2)
-    turn: u8,                      // 1
-    board: [[Option<Sign>; 3]; 3], // 9 * (1 + 1) = 18
-    state: GameState,              // 32 + 1
+pub struct TicTacToeGame {
+    pub players: [Pubkey; 2],          // (32 * 2)
+    pub turn: u8,                      // 1
+    pub board: [[Option<Sign>; 3]; 3], // 9 * (1 + 1) = 18
+    pub state: GameState,              // 32 + 1
+    pub bump: u8,                      // 1
 }
 
-impl Game {
-    pub const MAXIMUM_SIZE: usize = (32 * 2) + 1 + (9 * (1 + 1)) + (32 + 1);
+impl TicTacToeGame {
+    pub const MAXIMUM_SIZE: usize = (32 * 2) + 1 + (9 * (1 + 1)) + (32 + 1) + 1;
 
     pub fn start(&mut self, players: [Pubkey; 2]) -> Result<()> {
         require_eq!(self.turn, 0, TicTacToeError::GameAlreadyStarted);

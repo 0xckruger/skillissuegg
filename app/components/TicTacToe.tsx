@@ -1,7 +1,7 @@
 import {FC, useEffect, useState} from "react"
 import { useAnchorWallet, useConnection, useWallet } from "@solana/wallet-adapter-react"
 import * as anchor from "@project-serum/anchor"
-import { Button, Grid, GridItem, Text } from "@chakra-ui/react"
+import { Button, Grid, GridItem, Input, Text } from "@chakra-ui/react"
 import idl from "../../target/idl/tictactoe.json"
 
 const PROGRAM_ID = new anchor.web3.PublicKey("39YeZsrCamsEh4rjrqGZ74iqEdUwSJAWZhdtkQdP6Tae")
@@ -11,6 +11,7 @@ export const TicTacToe: FC = () => {
     const [gameState, setGameState] = useState<any>(null)
     const [transactionUrl, setTransactionUrl] = useState("")
     const [program, setProgram] = useState<anchor.Program | null>(null)
+    const [playerTwo, setPlayerTwo] = useState("")
 
     const { connection } = useConnection()
     const wallet = useAnchorWallet()
@@ -30,10 +31,9 @@ export const TicTacToe: FC = () => {
     const setupGame = async () => {
         if (program && wallet) {
             const gameKeypair = anchor.web3.Keypair.generate()
-            const playerTwo = anchor.web3.Keypair.generate()
 
             await program.methods
-                .setupGame(playerTwo.publicKey)
+                .setupGame(new anchor.web3.PublicKey(playerTwo))
                 .accounts({
                     game: gameKeypair.publicKey,
                     playerOne: wallet.publicKey,
@@ -43,6 +43,12 @@ export const TicTacToe: FC = () => {
 
             setGame(gameKeypair.publicKey)
             setGameState(await program.account.game.fetch(gameKeypair.publicKey))
+        }
+    }
+
+    const resumeGame = async () => {
+        if (program && wallet && game) {
+            setGameState(await program.account.game.fetch(game))
         }
     }
 
@@ -64,49 +70,66 @@ export const TicTacToe: FC = () => {
     return (
         <div>
             <Text fontSize="xl" fontWeight="bold">
-        Tic Tac Toe
-    </Text>
-    {game ? (
-        <div>
-            <Grid templateColumns="repeat(3, 1fr)" gap={2} mt={4}>
-        {gameState.board.map((row, rowIndex) =>
-                row.map((cell, colIndex) => (
-                    <GridItem
-                        key={`${rowIndex}-${colIndex}`}
-        bg="gray.100"
-        h="100px"
-        display="flex"
-        alignItems="center"
-        justifyContent="center"
-        onClick={() => play({ row: rowIndex, column: colIndex })}
-        cursor="pointer"
-        >
-        {cell === null ? "" : cell.x ? "X" : "O"}
-        </GridItem>
-    ))
-    )}
-        </Grid>
-        <Text mt={4}>
-        {gameState.state.active
-                ? `Player ${gameState.turn}'s turn`
-                : gameState.state.tie
-                    ? "It's a tie!"
-                    : `Player ${gameState.state.won.winner.toString()} wins!`}
-        </Text>
+                Tic Tac Toe
+            </Text>
+            {game ? (
+                <div>
+                    {gameState ? (
+                        <>
+                            <Grid templateColumns="repeat(3, 1fr)" gap={2} mt={4}>
+                                {gameState.board.map((row, rowIndex) =>
+                                    row.map((cell, colIndex) => (
+                                        <GridItem
+                                            key={`${rowIndex}-${colIndex}`}
+                                            bg="gray.100"
+                                            h="100px"
+                                            display="flex"
+                                            alignItems="center"
+                                            justifyContent="center"
+                                            onClick={() => play({ row: rowIndex, column: colIndex })}
+                                            cursor="pointer"
+                                        >
+                                            {cell === null ? "" : cell.x ? "X" : "O"}
+                                        </GridItem>
+                                    ))
+                                )}
+                            </Grid>
+                            <Text mt={4}>
+                                {gameState.state.active
+                                    ? `Player ${gameState.turn}'s turn`
+                                    : gameState.state.tie
+                                        ? "It's a tie!"
+                                        : `Player ${gameState.state.won.winner.toString()} wins!`}
+                            </Text>
+                        </>
+                    ) : (
+                        <Text>Loading game state...</Text>
+                    )}
+                    <Button onClick={resumeGame} mt={4}>
+                        Resume Game
+                    </Button>
+                </div>
+            ) : (
+                <div>
+                    <Input
+                        placeholder="Enter player two's address"
+                        value={playerTwo}
+                        onChange={(e) => setPlayerTwo(e.target.value)}
+                        mt={4}
+                    />
+                    <Button onClick={setupGame} mt={4}>
+                        Start Game
+                    </Button>
+                </div>
+            )}
+            {transactionUrl && (
+                <Text mt={4}>
+                    Transaction:{" "}
+                    <a href={transactionUrl} target="_blank" rel="noopener noreferrer">
+                        {transactionUrl}
+                    </a>
+                </Text>
+            )}
         </div>
-    ) : (
-        <Button onClick={setupGame} mt={4}>
-        Start Game
-    </Button>
-    )}
-    {transactionUrl && (
-        <Text mt={4}>
-            Transaction:{" "}
-        <a href={transactionUrl} target="_blank" rel="noopener noreferrer">
-        {transactionUrl}
-        </a>
-        </Text>
-    )}
-    </div>
-)
+    )
 }

@@ -3,6 +3,39 @@ import {AnchorError, Program, Wallet} from "@coral-xyz/anchor";
 import { Tictactoe } from "../target/types/tictactoe";
 import {expect} from "chai";
 
+const LAMPORTS_PER_SOL = 1000000000;
+
+const airDropSol = async (provider, player1) => {
+    try {
+        const airdropSignature = await provider.connection.requestAirdrop(
+            player1.publicKey,
+            2 * LAMPORTS_PER_SOL
+        );
+
+        const latestBlockHash = await provider.connection.getLatestBlockhash();
+
+        await provider.connection.confirmTransaction({
+            blockhash: latestBlockHash.blockhash,
+            lastValidBlockHeight: latestBlockHash.lastValidBlockHeight,
+            signature: airdropSignature,
+        });
+    } catch (error) {
+        console.error(error);
+    }
+};
+
+async function getBalance(provider, publicKey) {
+    try {
+        // Fetch the balance
+        const balance = await provider.connection.getBalance(publicKey);
+        // Convert the balance from lamports to SOL
+        const balanceInSol = balance / anchor.web3.LAMPORTS_PER_SOL;
+        console.log(`Balance: ${balanceInSol} SOL`);
+    } catch (error) {
+        console.error('Error fetching balance:', error);
+    }
+}
+
 async function play(
     program: Program<Tictactoe>,
     game: anchor.Address,
@@ -22,7 +55,7 @@ async function play(
         .signers(player instanceof (anchor.Wallet as any) ? [] : [player])
         .rpc();
 
-    const gameState = await program.account.game.fetch(game);
+    const gameState = await program.account.ticTacToeGame.fetch(game);
     expect(gameState.turn).to.equal(expectedTurn);
     if (gameState.state.won != null) {
         expect(gameState.state.won.winner.toString()).to.eql(expectedGameState.won.winnerPk.toString())
@@ -32,31 +65,40 @@ async function play(
     expect(gameState.board).to.eql(expectedBoard);
 }
 
-const createGameAccounts = async (
-    program: Program<Tictactoe>
-): Promise<[anchor.web3.Keypair, Wallet, anchor.web3.Keypair]> => {
-    const gameKeypair = anchor.web3.Keypair.generate();
+const createGameAccounts= async (
+    program: Program<Tictactoe>,
+    provider: anchor.AnchorProvider
+): Promise<[anchor.web3.PublicKey, Wallet, anchor.web3.Keypair]> => {
     const playerOne = (program.provider as anchor.AnchorProvider).wallet;
     const playerTwo = anchor.web3.Keypair.generate();
-    return [gameKeypair, playerOne as Wallet, playerTwo];
+    await airDropSol(provider, playerOne);
+    await airDropSol(provider, playerTwo);
+    const [gameAccount] = anchor.web3.PublicKey.findProgramAddressSync(
+        [Buffer.from("tictactoe"), playerOne.publicKey.toBuffer(), playerTwo.publicKey.toBuffer()],
+        program.programId
+    );
+    return [gameAccount, playerOne as Wallet, playerTwo];
 };
 
 const setupGame = async (
     program: Program<Tictactoe>,
-    gameKeypair: anchor.web3.Keypair,
+    gameAccount: anchor.web3.PublicKey,
     playerOne: any,
     playerTwo: anchor.web3.Keypair
 ) => {
+
     await program.methods
-        .setupGame(playerTwo.publicKey)
+        .setupGame()
         .accounts({
-            game: gameKeypair.publicKey,
+            game: gameAccount,
             playerOne: playerOne.publicKey,
+            playerTwo: playerTwo.publicKey,
+            systemProgram: anchor.web3.SystemProgram.programId
         })
-        .signers([gameKeypair])
+        .signers([playerOne.payer])
         .rpc();
 
-    let gameState = await program.account.game.fetch(gameKeypair.publicKey);
+    let gameState = await program.account.ticTacToeGame.fetch(gameAccount);
     expect(gameState.turn).to.equal(1);
     expect(gameState.players).to.eql([playerOne.publicKey, playerTwo.publicKey]);
     expect(gameState.state).to.eql({ active: {} });
@@ -70,25 +112,28 @@ const setupGame = async (
 
 describe("tictactoe", () => {
     // Configure the client to use the local cluster.
-    anchor.setProvider(anchor.AnchorProvider.env());
+    const provider = anchor.AnchorProvider.env();
+    anchor.setProvider(provider);
 
     const program = anchor.workspace.Tictactoe as Program<Tictactoe>;
 
     it("setup game!", async () => {
-        const [gameKeypair, playerOne, playerTwo] = await createGameAccounts(program);
-        await setupGame(program, gameKeypair, playerOne, playerTwo);
+        const [gameAccount, playerOne, playerTwo] =
+            await createGameAccounts(program, provider);
+        await setupGame(program, gameAccount, playerOne, playerTwo);
     });
 
 
     it("player one wins", async () => {
-        const [gameKeypair, playerOne, playerTwo] = await createGameAccounts(program);
-        await setupGame(program, gameKeypair, playerOne, playerTwo);
+        const [gameAccount, playerOne, playerTwo] =
+            await createGameAccounts(program, provider);
+        await setupGame(program, gameAccount, playerOne, playerTwo);
 
         let winnerPk = playerOne.publicKey;
 
         await play(
             program,
-            gameKeypair.publicKey,
+            gameAccount,
             playerOne,
             { row: 0, column: 0 },
             2,
@@ -102,7 +147,7 @@ describe("tictactoe", () => {
 
         await play(
             program,
-            gameKeypair.publicKey,
+            gameAccount,
             playerTwo,
             {row: 1, column: 1},
             3,
@@ -116,7 +161,7 @@ describe("tictactoe", () => {
 
         await play(
             program,
-            gameKeypair.publicKey,
+            gameAccount,
             playerOne,
             {row: 1, column: 0},
             4,
@@ -130,7 +175,7 @@ describe("tictactoe", () => {
 
         await play(
             program,
-            gameKeypair.publicKey,
+            gameAccount,
             playerTwo,
             {row: 2, column: 1},
             5,
@@ -144,7 +189,7 @@ describe("tictactoe", () => {
 
         await play(
             program,
-            gameKeypair.publicKey,
+            gameAccount,
             playerOne,
             {row: 2, column: 0},
             6,
@@ -158,12 +203,13 @@ describe("tictactoe", () => {
     });
 
     it("tie", async () => {
-        const [gameKeypair, playerOne, playerTwo] = await createGameAccounts(program);
-        await setupGame(program, gameKeypair, playerOne, playerTwo);
+        const [gameAccount, playerOne, playerTwo] =
+            await createGameAccounts(program, provider);
+        await setupGame(program, gameAccount, playerOne, playerTwo);
 
         await play(
             program,
-            gameKeypair.publicKey,
+            gameAccount,
             playerOne,
             { row: 1, column: 1 },
             2,
@@ -177,7 +223,7 @@ describe("tictactoe", () => {
 
         await play(
             program,
-            gameKeypair.publicKey,
+            gameAccount,
             playerTwo,
             {row: 0, column: 0},
             3,
@@ -191,7 +237,7 @@ describe("tictactoe", () => {
 
         await play(
             program,
-            gameKeypair.publicKey,
+            gameAccount,
             playerOne,
             {row: 0, column: 1},
             4,
@@ -205,7 +251,7 @@ describe("tictactoe", () => {
 
         await play(
             program,
-            gameKeypair.publicKey,
+            gameAccount,
             playerTwo,
             {row: 0, column: 2},
             5,
@@ -219,7 +265,7 @@ describe("tictactoe", () => {
 
         await play(
             program,
-            gameKeypair.publicKey,
+            gameAccount,
             playerOne,
             {row: 1, column: 0},
             6,
@@ -233,7 +279,7 @@ describe("tictactoe", () => {
 
         await play(
             program,
-            gameKeypair.publicKey,
+            gameAccount,
             playerTwo,
             {row: 1, column: 2},
             7,
@@ -247,7 +293,7 @@ describe("tictactoe", () => {
 
         await play(
             program,
-            gameKeypair.publicKey,
+            gameAccount,
             playerOne,
             {row: 2, column: 0},
             8,
@@ -261,7 +307,7 @@ describe("tictactoe", () => {
 
         await play(
             program,
-            gameKeypair.publicKey,
+            gameAccount,
             playerTwo,
             {row: 2, column: 1},
             9,
@@ -275,7 +321,7 @@ describe("tictactoe", () => {
 
         await play(
             program,
-            gameKeypair.publicKey,
+            gameAccount,
             playerOne,
             {row: 2, column: 2},
             10,
@@ -289,13 +335,14 @@ describe("tictactoe", () => {
     });
 
     it("out of bounds row", async () => {
-        const [gameKeypair, playerOne, playerTwo] = await createGameAccounts(program);
-        await setupGame(program, gameKeypair, playerOne, playerTwo);
+        const [gameAccount, playerOne, playerTwo] =
+            await createGameAccounts(program, provider);
+        await setupGame(program, gameAccount, playerOne, playerTwo);
 
         try {
             await play(
                 program,
-                gameKeypair.publicKey,
+                gameAccount,
                 playerTwo,
                 { row: 5, column: 1 }, // ERROR: out of bounds row
                 2,
@@ -316,12 +363,13 @@ describe("tictactoe", () => {
     })
 
     it("player one attempts to play twice in a row", async() => {
-        const [gameKeypair, playerOne, playerTwo] = await createGameAccounts(program);
-        await setupGame(program, gameKeypair, playerOne, playerTwo);
+        const [gameAccount, playerOne, playerTwo] =
+            await createGameAccounts(program, provider);
+        await setupGame(program, gameAccount, playerOne, playerTwo);
 
         await play(
             program,
-            gameKeypair.publicKey,
+            gameAccount,
             playerOne,
             { row: 0, column: 0 },
             2,
@@ -335,7 +383,7 @@ describe("tictactoe", () => {
         try {
             await play(
                 program,
-                gameKeypair.publicKey,
+                gameAccount,
                 playerOne,
                 {row: 1, column: 1},
                 3,

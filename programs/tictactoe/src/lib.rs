@@ -12,8 +12,8 @@ declare_id!("39YeZsrCamsEh4rjrqGZ74iqEdUwSJAWZhdtkQdP6Tae");
 pub mod tictactoe {
     use super::*;
 
-    pub fn setup_game(ctx: Context<SetupGame>, player_two: Pubkey) -> Result<()> {
-        setup_game::setup_game(ctx, player_two)
+    pub fn setup_game(ctx: Context<SetupGame>) -> Result<()> {
+        setup_game::setup_game(ctx)
     }
 
     pub fn play(ctx: Context<Play>, tile: Tile) -> Result<()> {

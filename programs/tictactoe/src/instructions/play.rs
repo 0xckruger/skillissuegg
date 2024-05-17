@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 use crate::errors::TicTacToeError;
-use crate::state::game::{Game, Tile};
+use crate::state::game::{TicTacToeGame, Tile};
 
 pub fn play(ctx: Context<Play>, tile: Tile) -> Result<()> {
     let game = &mut ctx.accounts.game;
@@ -16,7 +16,10 @@ pub fn play(ctx: Context<Play>, tile: Tile) -> Result<()> {
 
 #[derive(Accounts)]
 pub struct Play<'info> {
-    #[account(mut)]
-    pub game: Account<'info, Game>,
+    #[account(
+        mut,
+        seeds = [b"tictactoe".as_ref(), game.players[0].as_ref(), game.players[1].as_ref()],
+        bump)]
+    pub game: Account<'info, TicTacToeGame>,
     pub player: Signer<'info>,
 }
