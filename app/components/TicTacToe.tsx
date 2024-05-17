@@ -30,19 +30,33 @@ export const TicTacToe: FC = () => {
 
     const setupGame = async () => {
         if (program && wallet) {
-            const gameKeypair = anchor.web3.Keypair.generate()
 
+            const playerTwoKey = new anchor.web3.PublicKey(playerTwo);
+            console.log("Player One: ", wallet.publicKey.toString());
+            console.log("Player Two: ", playerTwoKey.toString());
+            const [gameAccount] = anchor.web3.PublicKey.findProgramAddressSync(
+                [Buffer.from("tictactoe"), wallet.publicKey.toBuffer(), playerTwoKey.toBuffer()],
+                program.programId
+            );
+
+            console.log("Game account key:", gameAccount.toString());
+
+            const player: any = wallet;
             await program.methods
-                .setupGame(new anchor.web3.PublicKey(playerTwo))
+                .setupGame()
                 .accounts({
-                    game: gameKeypair.publicKey,
+                    game: gameAccount,
                     playerOne: wallet.publicKey,
+                    playerTwo: playerTwoKey,
+                    systemProgram: anchor.web3.SystemProgram.programId
                 })
-                .signers([gameKeypair])
-                .rpc()
+                .signers([player.payer])
+                .rpc();
 
-            setGame(gameKeypair.publicKey)
-            setGameState(await program.account.game.fetch(gameKeypair.publicKey))
+            console.log("Game is set up!")
+
+            setGame(gameAccount)
+            setGameState(await program.account.game.fetch(gameAccount))
         }
     }
 
@@ -54,12 +68,15 @@ export const TicTacToe: FC = () => {
 
     const play = async (tile: { row: number; column: number }) => {
         if (program && wallet && game) {
+            console.log("Wallet key:", wallet.publicKey)
+            const player: any = wallet;
             const sig = await program.methods
                 .play(tile)
                 .accounts({
                     player: wallet.publicKey,
                     game,
                 })
+                .signers(player instanceof (anchor.Wallet as any) ? [] : [player])
                 .rpc()
 
             setTransactionUrl(`https://explorer.solana.com/tx/${sig}?cluster=devnet`)
