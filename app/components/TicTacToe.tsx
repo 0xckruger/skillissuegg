@@ -153,12 +153,13 @@ export const TicTacToe: FC = () => {
                                     ))
                                 )}
                             </Grid>
-                            <Text mt={4}>
+                            <Text mt={4} color='white'>
                                 {gameState.state.active
                                     ? `Player ${((gameState.turn - 1) % 2) + 1}'s turn`
                                     : gameState.state.tie
                                         ? "It's a tie!"
-                                        : `Player ${gameState.state.won.winner.toString()} wins!`}
+                                        : `Address ${gameState.state.won.winner.toString()} wins!`}
+
                             </Text>
                         </>
                     ) : (
