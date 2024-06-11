@@ -41,22 +41,56 @@ export const TicTacToe: FC = () => {
 
             console.log("Game account key:", gameAccount.toString());
 
-            const player: any = wallet;
-            await program.methods
-                .setupGame()
-                .accounts({
-                    game: gameAccount,
-                    playerOne: wallet.publicKey,
-                    playerTwo: playerTwoKey,
-                    systemProgram: anchor.web3.SystemProgram.programId
-                })
-                .signers([player.payer])
-                .rpc();
 
-            console.log("Game is set up!")
+            try {
+                try {
+                    const gameData = await program.account.ticTacToeGame.fetch(gameAccount);
+                    console.log("Fetched existing game data. You're Player 1: ", gameData);
+                    setGame(gameAccount);
+                    setGameState(gameData);
+                    return;
+                } catch {
+                    console.log("Couldn't fetch game data. Trying other side...")
+                    const playerOneKey = new anchor.web3.PublicKey(playerTwo);
+                    console.log("Player One: ", playerOneKey.toString());
+                    console.log("Player Two: ", wallet.publicKey.toString());
+                    const [gameAccount] = anchor.web3.PublicKey.findProgramAddressSync(
+                        [Buffer.from("tictactoe"), playerOneKey.toBuffer(), wallet.publicKey.toBuffer()],
+                        program.programId
+                    );
+                    const gameData = await program.account.ticTacToeGame.fetch(gameAccount);
+                    console.log("Fetched existing game data. You're Player 2: ", gameData);
+                    setGame(gameAccount);
+                    setGameState(gameData);
+                    return;
+                }
+            } catch {
+                console.log("No game found between the two players. Creating new game!")
+            }
+
+            const tx = program.transaction.setupGame(
+                {
+                    accounts: {
+                        game: gameAccount,
+                        playerOne: wallet.publicKey,
+                        playerTwo: playerTwoKey,
+                        systemProgram: anchor.web3.SystemProgram.programId
+                    },
+                    signers: [],
+                }
+            )
+            tx.feePayer = wallet.publicKey
+            tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash
+            const signedTx = await wallet.signTransaction(tx)
+            const txId = await connection.sendRawTransaction(signedTx.serialize())
+            await connection.confirmTransaction(txId)
+
+            console.log("Game account initialized:", gameAccount)
 
             setGame(gameAccount)
-            setGameState(await program.account.game.fetch(gameAccount))
+            const gameData = await program.account.ticTacToeGame.fetch(gameAccount);
+            setGameState(gameData)
+            console.log("Successfully set up a new game!")
         }
     }
 
@@ -69,18 +103,26 @@ export const TicTacToe: FC = () => {
     const play = async (tile: { row: number; column: number }) => {
         if (program && wallet && game) {
             console.log("Wallet key:", wallet.publicKey)
-            const player: any = wallet;
-            const sig = await program.methods
-                .play(tile)
-                .accounts({
-                    player: wallet.publicKey,
-                    game,
-                })
-                .signers(player instanceof (anchor.Wallet as any) ? [] : [player])
-                .rpc()
 
-            setTransactionUrl(`https://explorer.solana.com/tx/${sig}?cluster=devnet`)
-            setGameState(await program.account.game.fetch(game))
+            const tx = program.transaction.play(
+                tile,
+                {
+                    accounts: {
+                        player: wallet.publicKey,
+                        game,
+                    },
+                }
+            );
+
+            tx.feePayer = wallet.publicKey;
+            tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
+
+            const signedTx = await wallet.signTransaction(tx);
+            const txId = await connection.sendRawTransaction(signedTx.serialize());
+            await connection.confirmTransaction(txId);
+
+            setTransactionUrl(`https://explorer.solana.com/tx/${txId}?cluster=devnet`)
+            setGameState(await program.account.ticTacToeGame.fetch(game))
         }
     }
 
@@ -91,7 +133,7 @@ export const TicTacToe: FC = () => {
             </Text>
             {game ? (
                 <div>
-                    {gameState ? (
+                    {gameState && gameState.board ? (
                         <>
                             <Grid templateColumns="repeat(3, 1fr)" gap={2} mt={4}>
                                 {gameState.board.map((row, rowIndex) =>
@@ -113,7 +155,7 @@ export const TicTacToe: FC = () => {
                             </Grid>
                             <Text mt={4}>
                                 {gameState.state.active
-                                    ? `Player ${gameState.turn}'s turn`
+                                    ? `Player ${((gameState.turn - 1) % 2) + 1}'s turn`
                                     : gameState.state.tie
                                         ? "It's a tie!"
                                         : `Player ${gameState.state.won.winner.toString()} wins!`}
@@ -133,6 +175,7 @@ export const TicTacToe: FC = () => {
                         value={playerTwo}
                         onChange={(e) => setPlayerTwo(e.target.value)}
                         mt={4}
+                        color='white'
                     />
                     <Button onClick={setupGame} mt={4}>
                         Start Game
