@@ -3,6 +3,8 @@ import { useAnchorWallet, useConnection, useWallet } from "@solana/wallet-adapte
 import * as anchor from "@project-serum/anchor"
 import { Button, Grid, GridItem, Input, Text } from "@chakra-ui/react"
 import idl from "../../target/idl/tictactoe.json"
+import { TicTacToeErrorCode } from '../errors';
+
 
 const PROGRAM_ID = new anchor.web3.PublicKey("39YeZsrCamsEh4rjrqGZ74iqEdUwSJAWZhdtkQdP6Tae")
 
@@ -104,25 +106,42 @@ export const TicTacToe: FC = () => {
         if (program && wallet && game) {
             console.log("Wallet key:", wallet.publicKey)
 
-            const tx = program.transaction.play(
-                tile,
-                {
-                    accounts: {
-                        player: wallet.publicKey,
-                        game,
-                    },
+            try {
+                const tx = program.transaction.play(
+                    tile,
+                    {
+                        accounts: {
+                            player: wallet.publicKey,
+                            game,
+                        },
+                    }
+                );
+
+                tx.feePayer = wallet.publicKey;
+                tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
+
+                const signedTx = await wallet.signTransaction(tx);
+                const txId = await connection.sendRawTransaction(signedTx.serialize());
+                await connection.confirmTransaction(txId);
+
+                setTransactionUrl(`https://explorer.solana.com/tx/${txId}?cluster=devnet`)
+                setGameState(await program.account.ticTacToeGame.fetch(game))
+            } catch (error: any) {
+                console.error("Error playing the game:", error);
+
+                if (error.error && error.error.errorCode && error.error.errorMessage) {
+                    const errorCode = error.error.errorCode.code;
+                    const errorMessage = TicTacToeErrorCode[errorCode];
+
+                    if (errorMessage) {
+                        alert(`Error: ${errorMessage}`);
+                    } else {
+                        alert(`Unknown error occurred: ${errorCode}`);
+                    }
+                } else {
+                    alert("An error occurred while playing the game. Please try again.");
                 }
-            );
-
-            tx.feePayer = wallet.publicKey;
-            tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
-
-            const signedTx = await wallet.signTransaction(tx);
-            const txId = await connection.sendRawTransaction(signedTx.serialize());
-            await connection.confirmTransaction(txId);
-
-            setTransactionUrl(`https://explorer.solana.com/tx/${txId}?cluster=devnet`)
-            setGameState(await program.account.ticTacToeGame.fetch(game))
+            }
         }
     }
 
