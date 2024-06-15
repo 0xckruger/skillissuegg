@@ -1,5 +1,6 @@
 use anchor_lang::prelude::*;
 use crate::errors::TicTacToeError;
+use crate::instructions::EscrowAccount;
 use crate::state::game::{TicTacToeGame, Tile};
 
 pub fn play(ctx: Context<Play>, tile: Tile) -> Result<()> {
@@ -11,8 +12,12 @@ pub fn play(ctx: Context<Play>, tile: Tile) -> Result<()> {
         TicTacToeError::NotPlayersTurn
     );
 
+    let escrow = &mut ctx.accounts.escrow;
+
     game.play(&tile)
 }
+
+fn verify()
 
 #[derive(Accounts)]
 pub struct Play<'info> {
@@ -22,4 +27,6 @@ pub struct Play<'info> {
         bump)]
     pub game: Account<'info, TicTacToeGame>,
     pub player: Signer<'info>,
+    #[account(mut)]
+    pub escrow: Account<'info, EscrowAccount>
 }

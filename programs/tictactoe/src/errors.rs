@@ -13,5 +13,9 @@ pub enum TicTacToeError {
     #[msg("Game has already started")]
     GameAlreadyStarted,
     #[msg("Game is currently in play")]
-    GameNotOver
+    GameNotOver,
+    #[msg("Unauthorized user")]
+    UnauthorizedUser,
+    #[msg("Deposited amounts do not match")]
+    AmountMismatch,
 }
