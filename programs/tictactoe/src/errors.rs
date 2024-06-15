@@ -11,5 +11,7 @@ pub enum TicTacToeError {
     #[msg("It's not this player's turn")]
     NotPlayersTurn,
     #[msg("Game has already started")]
-    GameAlreadyStarted
+    GameAlreadyStarted,
+    #[msg("Game is currently in play")]
+    GameNotOver
 }
