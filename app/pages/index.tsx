@@ -6,7 +6,7 @@ import { Increment } from "../components/Increment"
 import { Initialize } from "../components/Initialize"
 import { useState } from "react"
 import Head from "next/head"
-import Pong from 'react-pong';
+import { Pong } from "../components/pong"
 import {
   Spacer,
   VStack,
@@ -35,12 +35,7 @@ const Home: NextPage = (props) => {
             <div className={styles.AppBody}>
               {wallet.connected ? (
                   <VStack>
-                    <NextLink href="/pong" passHref>
-                      <Button as="a" colorScheme="blue" mt={4}>
-                        Play Pong
-                      </Button>
-                    </NextLink>
-
+                    <Pong />
                     {counter ? (
                         <Increment
                             counter={counter}
@@ -52,7 +47,7 @@ const Home: NextPage = (props) => {
                             setTransactionUrl={setTransactionUrl}
                         />
                     )}
-
+            
                     <TicTacToe />
                   </VStack>
               ) : (
