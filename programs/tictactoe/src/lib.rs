@@ -19,4 +19,8 @@ pub mod tictactoe {
     pub fn play(ctx: Context<Play>, tile: Tile) -> Result<()> {
         play::play(ctx, tile)
     }
+
+    pub fn end_game(ctx: Context<EndGame>) -> Result<()> {
+        end_game::end_game(ctx)
+    }
 }

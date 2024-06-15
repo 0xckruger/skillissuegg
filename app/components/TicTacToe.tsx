@@ -96,11 +96,31 @@ export const TicTacToe: FC = () => {
         }
     }
 
+    const endGame = async() => {
+        if (program && wallet && game) {
+            const gameData = await program.account.ticTacToeGame.fetch(game);
+            const playerOne = gameData.players[0]
+            try {
+                const tx = program.transaction.endGame(
+                    {
+                        accounts: {
+                            game: game,
+                            playerOne: playerOne,
+                        }
+                    }
+                )
+            } catch {
+
+            }
+        }
+    }
+
     const resumeGame = async () => {
         if (program && wallet && game) {
             setGameState(await program.account.game.fetch(game))
         }
     }
+
 
     const play = async (tile: { row: number; column: number }) => {
         if (program && wallet && game) {
@@ -178,8 +198,12 @@ export const TicTacToe: FC = () => {
                                     : gameState.state.tie
                                         ? "It's a tie!"
                                         : `Address ${gameState.state.won.winner.toString()} wins!`}
-
                             </Text>
+                            {!gameState.state.active && (
+                                <Button onClick={endGame} mt={4} colorScheme="red">
+                                    End Game
+                                </Button>
+                            )}
                         </>
                     ) : (
                         <Text>Loading game state...</Text>
