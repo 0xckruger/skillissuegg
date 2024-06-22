@@ -24,6 +24,10 @@ pub mod tictactoe {
         bet::deposit(ctx, amount)
     }
 
+    pub fn withdraw(ctx: Context<Withdraw>) -> Result<()> {
+        bet::withdraw(ctx)
+    }
+
     pub fn end_game(ctx: Context<EndGame>) -> Result<()> {
         end_game::end_game(ctx)
     }

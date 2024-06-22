@@ -12,12 +12,8 @@ pub fn play(ctx: Context<Play>, tile: Tile) -> Result<()> {
         TicTacToeError::NotPlayersTurn
     );
 
-    let escrow = &mut ctx.accounts.escrow;
-
     game.play(&tile)
 }
-
-fn verify()
 
 #[derive(Accounts)]
 pub struct Play<'info> {
@@ -27,6 +23,4 @@ pub struct Play<'info> {
         bump)]
     pub game: Account<'info, TicTacToeGame>,
     pub player: Signer<'info>,
-    #[account(mut)]
-    pub escrow: Account<'info, EscrowAccount>
 }
