@@ -18,4 +18,8 @@ pub enum TicTacToeError {
     UnauthorizedUser,
     #[msg("Deposited amounts do not match")]
     AmountMismatch,
+    #[msg("Invalid player one account")]
+    InvalidPlayerOne,
+    #[msg("Invalid player two account")]
+    InvalidPlayerTwo,
 }
