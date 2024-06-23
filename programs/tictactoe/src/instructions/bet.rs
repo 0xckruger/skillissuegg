@@ -1,3 +1,4 @@
+use std::ops::{Add, Sub};
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::program::invoke;
 use anchor_lang::solana_program::system_instruction::transfer;
@@ -11,11 +12,6 @@ pub fn deposit(ctx: Context<Deposit>, amount: u64) -> Result<()> {
     require!(user.key() == game.players[0] || user.key() == game.players[1], TicTacToeError::UnauthorizedUser);
 
     let escrow = &mut ctx.accounts.escrow;
-
-    if escrow.get_player_one() == Pubkey::default() {
-        escrow.set_player_one(game.players[0]);
-        escrow.set_player_two(game.players[1]);
-    }
 
     if escrow.get_player_one().key() == user.key() {
         escrow.amount1 = amount;
@@ -44,26 +40,27 @@ pub fn deposit(ctx: Context<Deposit>, amount: u64) -> Result<()> {
 }
 
 pub fn withdraw(ctx: Context<Withdraw>) -> Result<()> {
-    let escrow = &mut ctx.accounts.escrow;
     let game = &ctx.accounts.game;
+    let escrow = &mut ctx.accounts.escrow;
+
+    let total_escrow = escrow.amount1 + escrow.amount2;
 
     match game.state {
         GameState::Tie => {
-            disperse_tie(
-                escrow,
-                &mut ctx.accounts.player_one,
-                &mut ctx.accounts.player_two,
-                &ctx.accounts.system_program,
-            )?;
+            let half_amount = total_escrow / 2;
+            escrow.to_account_info().sub_lamports(total_escrow)?;
+            ctx.accounts.player_one.add_lamports(half_amount)?;
+            ctx.accounts.player_two.add_lamports(half_amount)?;
         }
         GameState::Won { winner } => {
-            disperse_winner(
-                escrow,
-                &mut ctx.accounts.player_one,
-                &mut ctx.accounts.player_two,
-                &ctx.accounts.system_program,
-                winner,
-            )?;
+            escrow.to_account_info().sub_lamports(total_escrow)?;
+            if winner == ctx.accounts.player_one.key() {
+                ctx.accounts.player_one.add_lamports(total_escrow)?;
+            } else if winner == ctx.accounts.player_two.key() {
+                ctx.accounts.player_two.add_lamports(total_escrow)?;
+            } else {
+                return Err(error!(TicTacToeError::UnauthorizedUser))
+            }
         }
         GameState::Active => {
             return Err(error!(TicTacToeError::GameNotOver))
@@ -76,89 +73,17 @@ pub fn withdraw(ctx: Context<Withdraw>) -> Result<()> {
     Ok(())
 }
 
-fn disperse_winner<'info>(
-    escrow: &mut Account<'info, EscrowAccount>,
-    player_one: &mut AccountInfo<'info>,
-    player_two: &mut AccountInfo<'info>,
-    system_program: &Program<'info, System>,
-    winner: Pubkey,
-) -> Result<()> {
-    let total_escrow = escrow.amount1 + escrow.amount2;
-
-    let winner_account = if winner == escrow.get_player_one() {
-        player_one
-    } else if winner == escrow.get_player_two() {
-        player_two
-    } else {
-        return Err(error!(TicTacToeError::UnauthorizedUser));
-    };
-
-    let transfer_instruction_winner = transfer(
-        escrow.to_account_info().key,
-        winner_account.key,
-        total_escrow,
-    );
-
-    invoke(
-        &transfer_instruction_winner,
-        &[
-            escrow.to_account_info(),
-            winner_account.to_account_info(),
-            system_program.to_account_info(),
-        ],
-    )?;
-
-    Ok(())
-}
-
-fn disperse_tie<'info>(
-    escrow: &mut Account<'info, EscrowAccount>,
-    player_one: &mut AccountInfo<'info>,
-    player_two: &mut AccountInfo<'info>,
-    system_program: &Program<'info, System>,
-) -> Result<()> {
-    let total_escrow = escrow.amount1 + escrow.amount2;
-    let half_amount = total_escrow / 2;
-
-    let transfer_instruction_player_one = transfer(
-        escrow.to_account_info().key,
-        player_one.key,
-        half_amount,
-    );
-
-    let transfer_instruction_player_two = transfer(
-        escrow.to_account_info().key,
-        player_two.key,
-        half_amount,
-    );
-
-    invoke(
-        &transfer_instruction_player_one,
-        &[
-            escrow.to_account_info(),
-            player_one.to_account_info(),
-            system_program.to_account_info(),
-        ],
-    )?;
-
-    invoke(
-        &transfer_instruction_player_two,
-        &[
-            escrow.to_account_info(),
-            player_two.to_account_info(),
-            system_program.to_account_info(),
-        ],
-    )?;
-
-    Ok(())
-}
 #[derive(Accounts)]
 pub struct Deposit<'info> {
     #[account(mut)]
     pub game: Account<'info, TicTacToeGame>,
     #[account(mut)]
     pub user: Signer<'info>,
-    #[account(mut)]
+    #[account(
+        mut,
+        constraint = escrow.initialized @ TicTacToeError::EscrowNotInitialized,
+        constraint = (escrow.get_player_one() == user.key() || escrow.get_player_two() == user.key()) @ TicTacToeError::UnauthorizedUser
+    )]
     pub escrow: Account<'info, EscrowAccount>,
     pub system_program: Program<'info, System>,
 }
@@ -188,11 +113,22 @@ pub struct Withdraw<'info> {
 pub struct EscrowAccount {
     pub amount1: u64,
     pub amount2: u64,
+    pub bump: u8,
     player_one: Pubkey,
     player_two: Pubkey,
+    initialized: bool,
 }
 
 impl EscrowAccount {
+    pub fn initialize(&mut self, player_one: Pubkey, player_two: Pubkey, bump: u8) -> Result<()> {
+        require!(!self.initialized, TicTacToeError::EscrowAlreadyInitialized);
+        self.player_one = player_one;
+        self.player_two = player_two;
+        self.bump = bump;
+        self.initialized = true;
+        Ok(())
+    }
+
     pub fn get_player_one(&self) -> Pubkey {
         self.player_one
     }
@@ -200,13 +136,4 @@ impl EscrowAccount {
     pub fn get_player_two(&self) -> Pubkey {
         self.player_two
     }
-
-    pub fn set_player_one(&mut self, player: Pubkey) {
-        self.player_one = player;
-    }
-
-    pub fn set_player_two(&mut self, player: Pubkey) {
-        self.player_two = player;
-    }
 }
-

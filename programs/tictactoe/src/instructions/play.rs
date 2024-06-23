@@ -1,6 +1,5 @@
 use anchor_lang::prelude::*;
 use crate::errors::TicTacToeError;
-use crate::instructions::EscrowAccount;
 use crate::state::game::{TicTacToeGame, Tile};
 
 pub fn play(ctx: Context<Play>, tile: Tile) -> Result<()> {
