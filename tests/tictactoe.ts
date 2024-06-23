@@ -6,6 +6,432 @@ import './test_helpers';
 
 const LAMPORTS_PER_SOL = 1000000000;
 
+describe("tictactoe", () => {
+    // Configure the client to use the local cluster.
+    const provider = anchor.AnchorProvider.env();
+    anchor.setProvider(provider);
+    const program = anchor.workspace.Tictactoe as Program<Tictactoe>;
+
+    const FIVE_POINT_PRECISION = 5;
+    const THREE_POINT_PRECISION = 3;
+
+    it("setup game!", async () => {
+        const [gameAccount, escrowAccount, playerOne, playerTwo] =
+            await createGameAccounts(program, provider);
+        await setupGame(program, gameAccount, escrowAccount, playerOne, playerTwo);
+    });
+
+    it!("setup game and player one deposit", async () => {
+        const [gameAccount, escrowAccount, playerOne, playerTwo] =
+            await createGameAccounts(program, provider);
+        await setupGame(program, gameAccount, escrowAccount, playerOne, playerTwo);
+
+        const playerOneBalanceBeforeDeposit = await getBalance(provider, playerOne.publicKey);
+        await deposit(program, escrowAccount, playerOne, gameAccount, LAMPORTS_PER_SOL)
+        const playerOneBalanceAfterDeposit = await getBalance(provider, playerOne.publicKey);
+
+        expect(playerOneBalanceAfterDeposit).to.approximatelyEqual(playerOneBalanceBeforeDeposit - 1);
+    })
+
+    it!("setup game and player two deposit", async () => {
+        const [gameAccount, escrowAccount, playerOne, playerTwo] =
+            await createGameAccounts(program, provider);
+        await setupGame(program, gameAccount, escrowAccount, playerOne, playerTwo);
+
+        const playerTwoBalanceBeforeDeposit = await getBalance(provider, playerTwo.publicKey);
+        await deposit(program, escrowAccount, playerTwo, gameAccount, LAMPORTS_PER_SOL)
+        const playerTwoBalanceAfterDeposit = await getBalance(provider, playerTwo.publicKey);
+
+        expect(playerTwoBalanceAfterDeposit).to.approximatelyEqual(playerTwoBalanceBeforeDeposit - 1);
+
+    })
+
+    it!("setup game and both players deposit", async () => {
+        const [gameAccount, escrowAccount, playerOne, playerTwo] =
+            await createGameAccounts(program, provider);
+        await setupGame(program, gameAccount, escrowAccount, playerOne, playerTwo);
+
+        await depositEscrowAndCheck(program, escrowAccount, playerOne, gameAccount, 1, provider);
+
+        await depositEscrowAndCheck(program, escrowAccount, playerTwo, gameAccount, 1, provider);
+    })
+
+    it("player one wins, no escrow", async () => {
+        const [gameAccount, escrowAccount, playerOne, playerTwo] =
+            await createGameAccounts(program, provider);
+        await setupGame(program, gameAccount, escrowAccount, playerOne, playerTwo);
+
+        await playerOneWinningGame(program, gameAccount, playerOne, playerTwo);
+    });
+
+    it("players bets 1 SOL, player 1 wins 1 SOL escrow", async () => {
+        const [gameAccount, escrowAccount, playerOne, playerTwo] =
+            await createGameAccounts(program, provider);
+        await setupGame(program, gameAccount, escrowAccount, playerOne, playerTwo);
+
+        const playerOneBalanceAfterDeposit = await depositEscrowAndCheck(program, escrowAccount, playerOne, gameAccount, 1, provider);
+
+        await playerOneWinningGame(program, gameAccount, playerOne, playerTwo);
+
+        await withdraw(program, escrowAccount, playerOne, playerTwo, gameAccount);
+
+        const playerOneBalanceAfterWin = await getBalance(provider, playerOne.publicKey);
+        expect(playerOneBalanceAfterWin).to.approximatelyEqual(playerOneBalanceAfterDeposit + 1, THREE_POINT_PRECISION);
+    });
+
+    it("players bets 1 SOL, player 2 bets 1 SOL, wins 2 SOL escrow", async () => {
+        const [gameAccount, escrowAccount, playerOne, playerTwo] =
+            await createGameAccounts(program, provider);
+        await setupGame(program, gameAccount, escrowAccount, playerOne, playerTwo);
+
+        const playerOneBalanceAfterDeposit = await depositEscrowAndCheck(program, escrowAccount, playerOne, gameAccount, 1, provider);
+        const playerTwoBalanceAfterDeposit =  await depositEscrowAndCheck(program, escrowAccount, playerTwo, gameAccount, 1, provider);
+
+        await playerOneWinningGame(program, gameAccount, playerOne, playerTwo);
+
+        await withdraw(program, escrowAccount, playerOne, playerTwo, gameAccount);
+
+        const playerOneBalanceAfterWin = await getBalance(provider, playerOne.publicKey);
+        expect(playerOneBalanceAfterWin).to.approximatelyEqual(playerOneBalanceAfterDeposit + 2, THREE_POINT_PRECISION);
+        const playerTwoBalanceAfterWin = await getBalance(provider, playerTwo.publicKey);
+        expect(playerTwoBalanceAfterWin).to.approximatelyEqual(playerTwoBalanceAfterDeposit, THREE_POINT_PRECISION);
+    });
+
+    it("tie with escrow, both players get 1 SOL", async () => {
+        const [gameAccount, escrowAccount, playerOne, playerTwo] =
+            await createGameAccounts(program, provider);
+        await setupGame(program, gameAccount, escrowAccount, playerOne, playerTwo);
+
+        const playerOneBalanceAfterDeposit = await depositEscrowAndCheck(program, escrowAccount, playerOne, gameAccount, 1, provider);
+        const playerTwoBalanceAfterDeposit =  await depositEscrowAndCheck(program, escrowAccount, playerTwo, gameAccount, 1, provider);
+
+        await tieGame(program, gameAccount, playerOne, playerTwo);
+
+        await withdraw(program, escrowAccount, playerOne, playerTwo, gameAccount);
+
+        const playerOneBalanceAfterWin = await getBalance(provider, playerOne.publicKey);
+        expect(playerOneBalanceAfterWin).to.approximatelyEqual(playerOneBalanceAfterDeposit + 0.5, THREE_POINT_PRECISION);
+        const playerTwoBalanceAfterWin = await getBalance(provider, playerTwo.publicKey);
+        expect(playerTwoBalanceAfterWin).to.approximatelyEqual(playerTwoBalanceAfterDeposit + 0.5, THREE_POINT_PRECISION);
+    });
+
+    it("out of bounds row", async () => {
+        const [gameAccount, escrowAccount, playerOne, playerTwo] =
+            await createGameAccounts(program, provider);
+        await setupGame(program, gameAccount, escrowAccount, playerOne, playerTwo);
+
+        try {
+            await play(
+                program,
+                gameAccount,
+                playerTwo,
+                { row: 5, column: 1 }, // ERROR: out of bounds row
+                2,
+                { active: {} },
+                [
+                    [{ x: {} }, { x: {} }, null],
+                    [{ o: {} }, null, null],
+                    [null, null, null],
+                ]
+            );
+            // we use this to make sure we definitely throw an error
+            chai.assert(false, "should've failed but didn't ");
+        } catch (_err) {
+            expect(_err).to.be.instanceOf(AnchorError);
+            const err: AnchorError = _err;
+            expect(err.error.errorCode.number).to.equal(6003);
+        }
+    })
+
+    it("player one attempts to play twice in a row", async() => {
+        const [gameAccount, escrowAccount, playerOne, playerTwo] =
+            await createGameAccounts(program, provider);
+        await setupGame(program, gameAccount, escrowAccount, playerOne, playerTwo);
+
+        await play(
+            program,
+            gameAccount,
+            playerOne,
+            { row: 0, column: 0 },
+            2,
+            { active: {} },
+            [
+                [{ x: {} }, null, null],
+                [null, null, null],
+                [null, null, null],
+            ]
+        );
+        try {
+            await play(
+                program,
+                gameAccount,
+                playerOne,
+                {row: 1, column: 1},
+                3,
+                { active: {} },
+                [
+                    [{ x: {} }, null, null],
+                    [null, { x: {} }, null],
+                    [null, null, null],
+                ]
+            );
+            // we use this to make sure we definitely throw an error
+            chai.assert(false, "should've failed but didn't ");
+        } catch (_err) {
+            expect(_err).to.be.instanceOf(AnchorError);
+            const err: AnchorError = _err;
+            expect(err.error.errorCode.number).to.equal(6003);
+        }
+    })
+
+    it("attempting to close a running game fails", async() => {
+        const [gameAccount, escrowAccount, playerOne, playerTwo] =
+            await createGameAccounts(program, provider);
+        await setupGame(program, gameAccount, escrowAccount, playerOne, playerTwo);
+
+        await play(
+            program,
+            gameAccount,
+            playerOne,
+            { row: 0, column: 0 },
+            2,
+            { active: {} },
+            [
+                [{ x: {} }, null, null],
+                [null, null, null],
+                [null, null, null],
+            ]
+        );
+        try {
+            await endGame(
+                program,
+                gameAccount,
+                escrowAccount,
+                playerOne,
+            )
+            // we use this to make sure we definitely throw an error
+            chai.assert(false, "should've failed but didn't ");
+        } catch (_err) {
+            expect(_err).to.be.instanceOf(AnchorError);
+            const err: AnchorError = _err;
+            expect(err.error.errorCode.number).to.equal(6005);
+        }
+    })
+
+    it("attempting to close a finished game with escrowed funds fails", async() => {
+        const [gameAccount, escrowAccount, playerOne, playerTwo] =
+            await createGameAccounts(program, provider);
+        await setupGame(program, gameAccount, escrowAccount, playerOne, playerTwo);
+
+        await depositEscrowAndCheck(program, escrowAccount, playerOne, gameAccount, 1, provider);
+        await depositEscrowAndCheck(program, escrowAccount, playerTwo, gameAccount, 1, provider);
+
+        await playerOneWinningGame(program, gameAccount, playerOne, playerTwo);
+
+        try {
+            await endGame(
+                program,
+                gameAccount,
+                escrowAccount,
+                playerOne,
+            )
+            // we use this to make sure we definitely throw an error
+            chai.assert(false, "should've failed but didn't ");
+        } catch (_err) {
+            expect(_err).to.be.instanceOf(AnchorError);
+            const err: AnchorError = _err;
+            expect(err.error.errorCode.number).to.equal(6012);
+        }
+    })
+
+    it("player one wins, game is closed", async () => {
+        const [gameAccount, escrowAccount, playerOne, playerTwo] =
+            await createGameAccounts(program, provider);
+        await setupGame(program, gameAccount, escrowAccount, playerOne, playerTwo);
+
+        await playerOneWinningGame(program, gameAccount, playerOne, playerTwo);
+
+        await endGame(
+            program,
+            gameAccount,
+            escrowAccount,
+            playerOne
+        )
+
+        try {
+            await play(
+                program,
+                gameAccount,
+                playerOne,
+                {row: 1, column: 1},
+                3,
+                { active: {} },
+                [
+                    [{ x: {} }, null, null],
+                    [null, { x: {} }, null],
+                    [null, null, null],
+                ]
+            );
+            // we use this to make sure we definitely throw an error
+            chai.assert(false, "should've failed but didn't ");
+        } catch (_err) {
+            expect(_err).to.be.instanceOf(AnchorError);
+            const err: AnchorError = _err;
+            expect(err.error.errorCode.number).to.equal(3012);
+        }
+    });
+
+
+    it("game closeable after tie, no escrow", async () => {
+        const [gameAccount, escrowAccount, playerOne, playerTwo] =
+            await createGameAccounts(program, provider);
+        await setupGame(program, gameAccount, escrowAccount, playerOne, playerTwo);
+
+        await tieGame(program, gameAccount, playerOne, playerTwo);
+
+        await endGame(
+            program,
+            gameAccount,
+            escrowAccount,
+            playerOne
+        )
+
+        try {
+            await play(
+                program,
+                gameAccount,
+                playerOne,
+                {row: 1, column: 1},
+                3,
+                { active: {} },
+                [
+                    [{ x: {} }, null, null],
+                    [null, { x: {} }, null],
+                    [null, null, null],
+                ]
+            );
+            // we use this to make sure we definitely throw an error
+            chai.assert(false, "should've failed but didn't ");
+        } catch (_err) {
+            expect(_err).to.be.instanceOf(AnchorError);
+            const err: AnchorError = _err;
+            expect(err.error.errorCode.number).to.equal(3012);
+        }
+    });
+
+    it("player one wins, escrow withdrawn, game is closed", async () => {
+        const [gameAccount, escrowAccount, playerOne, playerTwo] =
+            await createGameAccounts(program, provider);
+        await setupGame(program, gameAccount, escrowAccount, playerOne, playerTwo);
+
+        const playerOneBalanceAfterDeposit = await depositEscrowAndCheck(program, escrowAccount, playerOne, gameAccount, 1, provider);
+        const playerTwoBalanceAfterDeposit =  await depositEscrowAndCheck(program, escrowAccount, playerTwo, gameAccount, 1, provider);
+
+        await playerOneWinningGame(program, gameAccount, playerOne, playerTwo);
+
+        await withdraw(program, escrowAccount, playerOne, playerTwo, gameAccount);
+
+        const playerOneBalanceAfterWin = await getBalance(provider, playerOne.publicKey);
+        expect(playerOneBalanceAfterWin).to.approximatelyEqual(playerOneBalanceAfterDeposit + 2, THREE_POINT_PRECISION);
+        const playerTwoBalanceAfterWin = await getBalance(provider, playerTwo.publicKey);
+        expect(playerTwoBalanceAfterWin).to.approximatelyEqual(playerTwoBalanceAfterDeposit, THREE_POINT_PRECISION);
+
+        await endGame(
+            program,
+            gameAccount,
+            escrowAccount,
+            playerOne
+        )
+
+        try {
+            await play(
+                program,
+                gameAccount,
+                playerOne,
+                {row: 1, column: 1},
+                3,
+                { active: {} },
+                [
+                    [{ x: {} }, null, null],
+                    [null, { x: {} }, null],
+                    [null, null, null],
+                ]
+            );
+            // we use this to make sure we definitely throw an error
+            chai.assert(false, "should've failed but didn't ");
+        } catch (_err) {
+            expect(_err).to.be.instanceOf(AnchorError);
+            const err: AnchorError = _err;
+            expect(err.error.errorCode.number).to.equal(3012);
+        }
+    });
+
+
+    it("tie, escrow withdrawn, game closeable", async () => {
+        const [gameAccount, escrowAccount, playerOne, playerTwo] =
+            await createGameAccounts(program, provider);
+        await setupGame(program, gameAccount, escrowAccount, playerOne, playerTwo);
+
+        const playerOneBalanceAfterDeposit = await depositEscrowAndCheck(program, escrowAccount, playerOne, gameAccount, 1, provider);
+        const playerTwoBalanceAfterDeposit =  await depositEscrowAndCheck(program, escrowAccount, playerTwo, gameAccount, 1, provider);
+
+        await tieGame(program, gameAccount, playerOne, playerTwo);
+
+        await withdraw(program, escrowAccount, playerOne, playerTwo, gameAccount);
+
+        const playerOneBalanceAfterWin = await getBalance(provider, playerOne.publicKey);
+        expect(playerOneBalanceAfterWin).to.approximatelyEqual(playerOneBalanceAfterDeposit + 0.5, THREE_POINT_PRECISION);
+        const playerTwoBalanceAfterWin = await getBalance(provider, playerTwo.publicKey);
+        expect(playerTwoBalanceAfterWin).to.approximatelyEqual(playerTwoBalanceAfterDeposit + 0.5, THREE_POINT_PRECISION);
+
+        await endGame(
+            program,
+            gameAccount,
+            escrowAccount,
+            playerOne
+        )
+
+        try {
+            await play(
+                program,
+                gameAccount,
+                playerOne,
+                {row: 1, column: 1},
+                3,
+                { active: {} },
+                [
+                    [{ x: {} }, null, null],
+                    [null, { x: {} }, null],
+                    [null, null, null],
+                ]
+            );
+            // we use this to make sure we definitely throw an error
+            chai.assert(false, "should've failed but didn't ");
+        } catch (_err) {
+            expect(_err).to.be.instanceOf(AnchorError);
+            const err: AnchorError = _err;
+            expect(err.error.errorCode.number).to.equal(3012);
+        }
+    });
+});
+
+async function depositEscrowAndCheck(
+    program: anchor.Program<Tictactoe>,
+    escrowAccount: anchor.web3.PublicKey,
+    player: { publicKey: any; },
+    gameAccount: anchor.web3.PublicKey,
+    sol_amount: number,
+    provider: any
+) {
+    const playerBalanceBeforeDeposit = await getBalance(provider, player.publicKey);
+    await deposit(program, escrowAccount, player, gameAccount, sol_amount * LAMPORTS_PER_SOL)
+    const playerBalanceAfterDeposit = await getBalance(provider, player.publicKey);
+
+    expect(playerBalanceAfterDeposit).to.approximatelyEqual(playerBalanceBeforeDeposit - (sol_amount));
+
+    return playerBalanceAfterDeposit;
+}
+
 const airDropSol = async (provider, player1) => {
     try {
         const airdropSignature = await provider.connection.requestAirdrop(
@@ -127,12 +553,14 @@ const setupGame = async (
 const endGame = async(
     program: Program<Tictactoe>,
     gameAccount: anchor.web3.PublicKey,
+    escrowAccount: anchor.web3.PublicKey,
     player: any,
 ) => {
     await program.methods
         .endGame()
         .accounts({
             game: gameAccount,
+            escrow: escrowAccount,
             closer: player.publicKey,
         })
         .signers(player instanceof (anchor.Wallet as any) ? [] : [player])
@@ -175,92 +603,138 @@ const withdraw = async (
         .rpc();
 }
 
-describe("tictactoe", () => {
-    // Configure the client to use the local cluster.
-    const provider = anchor.AnchorProvider.env();
-    anchor.setProvider(provider);
-    const program = anchor.workspace.Tictactoe as Program<Tictactoe>;
+async function tieGame(
+    program: Program<Tictactoe>,
+    gameAccount: anchor.web3.PublicKey,
+    playerOne: any,
+    playerTwo: any,
+) {
+    await play(
+        program,
+        gameAccount,
+        playerOne,
+        { row: 1, column: 1 },
+        2,
+        { active: {} },
+        [
+            [null , null, null],
+            [null, { x: {} }, null],
+            [null, null, null],
+        ]
+    );
 
-    const FIVE_POINT_PRECISION = 5;
-    const THREE_POINT_PRECISION = 3;
+    await play(
+        program,
+        gameAccount,
+        playerTwo,
+        {row: 0, column: 0},
+        3,
+        { active: {} },
+        [
+            [{ o: {} }, null, null],
+            [null, { x: {} }, null],
+            [null, null, null],
+        ]
+    )
 
-    it("setup game!", async () => {
-        const [gameAccount, escrowAccount, playerOne, playerTwo] =
-            await createGameAccounts(program, provider);
-        await setupGame(program, gameAccount, escrowAccount, playerOne, playerTwo);
-    });
+    await play(
+        program,
+        gameAccount,
+        playerOne,
+        {row: 0, column: 1},
+        4,
+        { active: {} },
+        [
+            [{ o: {} }, { x: {} }, null],
+            [null, { x: {} }, null],
+            [null, null, null],
+        ]
+    )
 
-    it!("setup game and player one deposit", async () => {
-        const [gameAccount, escrowAccount, playerOne, playerTwo] =
-            await createGameAccounts(program, provider);
-        await setupGame(program, gameAccount, escrowAccount, playerOne, playerTwo);
+    await play(
+        program,
+        gameAccount,
+        playerTwo,
+        {row: 0, column: 2},
+        5,
+        { active: {} },
+        [
+            [{ o: {} }, { x: {} }, { o: {} }],
+            [null, { x: {} }, null],
+            [null, null, null],
+        ]
+    )
 
-        const playerOneBalanceBeforeDeposit = await getBalance(provider, playerOne.publicKey);
-        await deposit(program, escrowAccount, playerOne, gameAccount, LAMPORTS_PER_SOL)
-        const playerOneBalanceAfterDeposit = await getBalance(provider, playerOne.publicKey);
+    await play(
+        program,
+        gameAccount,
+        playerOne,
+        {row: 1, column: 0},
+        6,
+        { active: {} },
+        [
+            [{ o: {} }, { x: {} }, { o: {} }],
+            [{ x: {} }, { x: {} }, null],
+            [null, null, null],
+        ]
+    )
 
-        expect(playerOneBalanceAfterDeposit).to.approximatelyEqual(playerOneBalanceBeforeDeposit - 1);
-    })
+    await play(
+        program,
+        gameAccount,
+        playerTwo,
+        {row: 1, column: 2},
+        7,
+        { active: {} },
+        [
+            [{ o: {} }, { x: {} }, { o: {} }],
+            [{ x: {} }, { x: {} }, { o: {} }],
+            [null, null, null],
+        ]
+    )
 
-    it!("setup game and player two deposit", async () => {
-        const [gameAccount, escrowAccount, playerOne, playerTwo] =
-            await createGameAccounts(program, provider);
-        await setupGame(program, gameAccount, escrowAccount, playerOne, playerTwo);
+    await play(
+        program,
+        gameAccount,
+        playerOne,
+        {row: 2, column: 0},
+        8,
+        { active: {} },
+        [
+            [{ o: {} }, { x: {} }, { o: {} }],
+            [{ x: {} }, { x: {} }, { o: {} }],
+            [{ x: {} }, null, null],
+        ]
+    )
 
-        const playerTwoBalanceBeforeDeposit = await getBalance(provider, playerTwo.publicKey);
-        await deposit(program, escrowAccount, playerTwo, gameAccount, LAMPORTS_PER_SOL)
-        const playerTwoBalanceAfterDeposit = await getBalance(provider, playerTwo.publicKey);
+    await play(
+        program,
+        gameAccount,
+        playerTwo,
+        {row: 2, column: 1},
+        9,
+        { active: {} },
+        [
+            [{ o: {} }, { x: {} }, { o: {} }],
+            [{ x: {} }, { x: {} }, { o: {} }],
+            [{ x: {} }, { o: {} }, null],
+        ]
+    )
 
-        expect(playerTwoBalanceAfterDeposit).to.approximatelyEqual(playerTwoBalanceBeforeDeposit - 1);
-
-    })
-
-    it!("setup game and both players deposit", async () => {
-        const [gameAccount, escrowAccount, playerOne, playerTwo] =
-            await createGameAccounts(program, provider);
-        await setupGame(program, gameAccount, escrowAccount, playerOne, playerTwo);
-
-        const playerOneBalanceBeforeDeposit = await getBalance(provider, playerOne.publicKey);
-        await deposit(program, escrowAccount, playerOne, gameAccount, LAMPORTS_PER_SOL)
-        const playerOneBalanceAfterDeposit = await getBalance(provider, playerOne.publicKey);
-
-        expect(playerOneBalanceAfterDeposit).to.approximatelyEqual(playerOneBalanceBeforeDeposit - 1);
-
-        const playerTwoBalanceBeforeDeposit = await getBalance(provider, playerTwo.publicKey);
-        await deposit(program, escrowAccount, playerTwo, gameAccount, LAMPORTS_PER_SOL)
-        const playerTwoBalanceAfterDeposit = await getBalance(provider, playerTwo.publicKey);
-
-        expect(playerTwoBalanceAfterDeposit).to.approximatelyEqual(playerTwoBalanceBeforeDeposit - 1);
-    })
-
-    it("player one wins, no escrow", async () => {
-        const [gameAccount, escrowAccount, playerOne, playerTwo] =
-            await createGameAccounts(program, provider);
-        await setupGame(program, gameAccount, escrowAccount, playerOne, playerTwo);
-
-        await playerOneWinningGame(program, gameAccount, playerOne, playerTwo);
-    });
-
-    it("players bets 1 SOL, player 1 wins escrow", async () => {
-        const [gameAccount, escrowAccount, playerOne, playerTwo] =
-            await createGameAccounts(program, provider);
-        await setupGame(program, gameAccount, escrowAccount, playerOne, playerTwo);
-
-        const playerOneBalanceBeforeDeposit = await getBalance(provider, playerOne.publicKey);
-        await deposit(program, escrowAccount, playerOne, gameAccount, LAMPORTS_PER_SOL)
-        const playerOneBalanceAfterDeposit = await getBalance(provider, playerOne.publicKey);
-
-        expect(playerOneBalanceAfterDeposit).to.approximatelyEqual(playerOneBalanceBeforeDeposit - 1);
-
-        await playerOneWinningGame(program, gameAccount, playerOne, playerTwo);
-
-        await withdraw(program, escrowAccount, playerOne, playerTwo, gameAccount);
-
-        const playerOneBalanceAfterWin = await getBalance(provider, playerOne.publicKey);
-        expect(playerOneBalanceAfterWin).to.approximatelyEqual(playerOneBalanceAfterDeposit + 1, THREE_POINT_PRECISION);
-
-    });
-});
+    await play(
+        program,
+        gameAccount,
+        playerOne,
+        {row: 2, column: 2},
+        10,
+        { tie: {} },
+        [
+            [{ o: {} }, { x: {} }, { o: {} }],
+            [{ x: {} }, { x: {} }, { o: {} }],
+            [{ x: {} }, { o: {} }, { x: {} }],
+        ]
+    )
+}
 
 async function playerOneWinningGame(
     program: Program<Tictactoe>,
