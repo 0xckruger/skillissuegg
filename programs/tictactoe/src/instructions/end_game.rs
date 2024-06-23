@@ -18,7 +18,9 @@ pub struct EndGame<'info> {
         mut,
         close = closer)]
     pub game: Account<'info, TicTacToeGame>,
-    #[account(mut)]
+    #[account(
+        mut,
+        close = closer)]
     pub escrow: Account<'info, EscrowAccount>,
     #[account(mut)]
     pub closer: Signer<'info>,

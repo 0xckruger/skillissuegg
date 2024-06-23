@@ -281,6 +281,76 @@ describe("tictactoe", () => {
         }
     });
 
+    it("player one wins, game is closed, can start new game", async () => {
+        const [gameAccount, escrowAccount, playerOne, playerTwo] =
+            await createGameAccounts(program, provider);
+        await setupGame(program, gameAccount, escrowAccount, playerOne, playerTwo);
+
+        await playerOneWinningGame(program, gameAccount, playerOne, playerTwo);
+
+        await endGame(
+            program,
+            gameAccount,
+            escrowAccount,
+            playerOne
+        )
+
+        try {
+            await play(
+                program,
+                gameAccount,
+                playerOne,
+                {row: 1, column: 1},
+                3,
+                { active: {} },
+                [
+                    [{ x: {} }, null, null],
+                    [null, { x: {} }, null],
+                    [null, null, null],
+                ]
+            );
+            // we use this to make sure we definitely throw an error
+            chai.assert(false, "should've failed but didn't ");
+        } catch (_err) {
+            expect(_err).to.be.instanceOf(AnchorError);
+            const err: AnchorError = _err;
+            expect(err.error.errorCode.number).to.equal(3012);
+        }
+
+        const [secondGameAccount, secondEscrowAccount] = await createNewGameSamePlayers(program, provider, playerOne, playerTwo);
+        await setupGame(program, secondGameAccount, secondEscrowAccount, playerOne, playerTwo);
+
+        await playerOneWinningGame(program, secondGameAccount, playerOne, playerTwo);
+
+        await endGame(
+            program,
+            secondGameAccount,
+            secondEscrowAccount,
+            playerOne
+        )
+
+        try {
+            await play(
+                program,
+                secondGameAccount,
+                playerOne,
+                {row: 1, column: 1},
+                3,
+                { active: {} },
+                [
+                    [{ x: {} }, null, null],
+                    [null, { x: {} }, null],
+                    [null, null, null],
+                ]
+            );
+            // we use this to make sure we definitely throw an error
+            chai.assert(false, "should've failed but didn't ");
+        } catch (_err) {
+            expect(_err).to.be.instanceOf(AnchorError);
+            const err: AnchorError = _err;
+            expect(err.error.errorCode.number).to.equal(3012);
+        }
+    });
 
     it("game closeable after tie, no escrow", async () => {
         const [gameAccount, escrowAccount, playerOne, playerTwo] =
@@ -493,7 +563,7 @@ async function play(
     expect(gameState.board).to.eql(expectedBoard);
 }
 
-const createGameAccounts= async (
+const createGameAccounts = async (
     program: Program<Tictactoe>,
     provider: anchor.AnchorProvider
 ): Promise<[anchor.web3.PublicKey, anchor.web3.PublicKey, Wallet, anchor.web3.Keypair]> => {
@@ -511,6 +581,25 @@ const createGameAccounts= async (
     );
     return [gameAccount, escrowAccount, playerOne as Wallet, playerTwo];
 };
+
+const createNewGameSamePlayers = async (
+    program: Program<Tictactoe>,
+    provider: anchor.AnchorProvider,
+    playerOne: any,
+    playerTwo: anchor.web3.Keypair,
+) => {
+    await airDropSol(provider, playerOne);
+    await airDropSol(provider, playerTwo);
+    const [gameAccount] = anchor.web3.PublicKey.findProgramAddressSync(
+        [Buffer.from("tictactoe"), playerOne.publicKey.toBuffer(), playerTwo.publicKey.toBuffer()],
+        program.programId
+    );
+    const [escrowAccount] = anchor.web3.PublicKey.findProgramAddressSync(
+        [Buffer.from("escrow"), gameAccount.toBuffer()],
+        program.programId
+    );
+    return [gameAccount, escrowAccount];
+}
 
 const setupGame = async (
     program: Program<Tictactoe>,
