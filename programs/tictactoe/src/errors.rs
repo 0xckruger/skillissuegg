@@ -22,4 +22,10 @@ pub enum TicTacToeError {
     InvalidPlayerOne,
     #[msg("Invalid player two account")]
     InvalidPlayerTwo,
+    #[msg("Escrow account is already initialized")]
+    EscrowAlreadyInitialized,
+    #[msg("Escrow account is not initialized")]
+    EscrowNotInitialized,
+    #[msg("Escrowed funds still present, please withdraw")]
+    EscrowFundsPresent
 }

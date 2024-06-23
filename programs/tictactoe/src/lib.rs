@@ -20,7 +20,7 @@ pub mod tictactoe {
         play::play(ctx, tile)
     }
 
-    pub fn stake(ctx: Context<Deposit>, amount: u64) -> Result<()> {
+    pub fn deposit(ctx: Context<Deposit>, amount: u64) -> Result<()> {
         bet::deposit(ctx, amount)
     }
 
