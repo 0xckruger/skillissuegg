@@ -3,7 +3,7 @@ import styles from "../styles/Home.module.css";
 import { AppBar } from "../components/AppBar";
 import { Tabs, TabList, TabPanels, Tab, TabPanel } from "@chakra-ui/react";
 import Head from "next/head";
-import { Pong } from "../components/pong";
+import PongGame from '../components/pong'
 import {
   Box,
   Stack,
@@ -22,14 +22,14 @@ const Home: NextPage = (props) => {
           <AppBar position="fixed" top={0} />
           <Tabs size='md' variant='soft-rounded' colorScheme="whiteAlpha" mt={16}>
           <TabList>
-            <Tab>Ping Pong</Tab>
+            <Tab>Pong</Tab>
             <Tab>Tic-Tac-Toe</Tab>
           </TabList>
 
           {/* We can define game components at each tab panel for desired page view */}
           <TabPanels>
             <TabPanel>
-              <Pong />
+              <PongGame />
             </TabPanel>
             <TabPanel>
               <TicTacToe />
