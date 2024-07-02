@@ -1,166 +1,189 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import io, { Socket } from 'socket.io-client';
 
 const PADDLE_HEIGHT = 100;
 const PADDLE_WIDTH = 10;
 const BALL_SIZE = 10;
 const GAME_WIDTH = 800;
 const GAME_HEIGHT = 400;
-const PADDLE_VELOCITY = 60;
 
-const Paddle = ({ position, top }) => (
-  <div
-    style={{
-      position: 'absolute',
-      left: position === 'left' ? 0 : GAME_WIDTH - PADDLE_WIDTH,
-      top,
-      width: PADDLE_WIDTH,
-      height: PADDLE_HEIGHT,
-      backgroundColor: 'white',
-    }}
-  />
+interface GameState {
+    leftPaddleY: number;
+    rightPaddleY: number;
+    ballPosition: { x: number; y: number };
+    leftScore: number;
+    rightScore: number;
+    gameStatus: 'waiting' | 'playing' | 'ended';
+    connectedPlayers: { position: string; id: string }[];
+}
+
+const Paddle: React.FC<{ position: 'left' | 'right'; top: number }> = ({ position, top }) => (
+    <div
+        style={{
+            position: 'absolute',
+            left: position === 'left' ? 0 : GAME_WIDTH - PADDLE_WIDTH,
+            top,
+            width: PADDLE_WIDTH,
+            height: PADDLE_HEIGHT,
+            backgroundColor: 'white',
+        }}
+    />
 );
 
-const Ball = ({ x, y }) => (
-  <div
-    style={{
-      position: 'absolute',
-      left: x,
-      top: y,
-      width: BALL_SIZE,
-      height: BALL_SIZE,
-      backgroundColor: 'white',
-      borderRadius: '50%',
-    }}
-  />
+const Ball: React.FC<{ x: number; y: number }> = ({ x, y }) => (
+    <div
+        style={{
+            position: 'absolute',
+            left: x,
+            top: y,
+            width: BALL_SIZE,
+            height: BALL_SIZE,
+            backgroundColor: 'white',
+            borderRadius: '50%',
+        }}
+    />
 );
 
-const Scoreboard = ({ leftScore, rightScore }) => (
-  <div
-    style={{
-      position: 'absolute',
-      top: 20,
-      left: 0,
-      right: 0,
-      display: 'flex',
-      justifyContent: 'center',
-      gap: '100px',
-      color: '#33ff33',
-      fontFamily: '"Press Start 2P", cursive',
-      fontSize: '24px',
-    }}
-  >
-    <div>{leftScore}</div>
-    <div>{rightScore}</div>
-  </div>
+const Scoreboard: React.FC<{ leftScore: number; rightScore: number }> = ({ leftScore, rightScore }) => (
+    <div
+        style={{
+            position: 'absolute',
+            top: 20,
+            left: 0,
+            right: 0,
+            display: 'flex',
+            justifyContent: 'center',
+            gap: '100px',
+            color: '#33ff33',
+            fontFamily: '"Press Start 2P", cursive',
+            fontSize: '24px',
+        }}
+    >
+        <div>{leftScore}</div>
+        <div>{rightScore}</div>
+    </div>
 );
 
-const PongGame = () => {
-  const [leftPaddleY, setLeftPaddleY] = useState(GAME_HEIGHT / 2 - PADDLE_HEIGHT / 2);
-  const [rightPaddleY, setRightPaddleY] = useState(GAME_HEIGHT / 2 - PADDLE_HEIGHT / 2);
-  const [ballPosition, setBallPosition] = useState({ x: GAME_WIDTH / 2 - BALL_SIZE / 2, y: GAME_HEIGHT / 2 - BALL_SIZE / 2 });
-  const [ballVelocity, setBallVelocity] = useState({ x: 5, y: 2 });
-  const [leftScore, setLeftScore] = useState(0);
-  const [rightScore, setRightScore] = useState(0);
-  const [isResetting, setIsResetting] = useState(false);
-
-  const movePaddle = useCallback((paddle, direction) => {
-    const setPaddle = paddle === 'left' ? setLeftPaddleY : setRightPaddleY;
-    setPaddle((prevY) => {
-      const newY = prevY + direction * PADDLE_VELOCITY;
-      return Math.max(0, Math.min(GAME_HEIGHT - PADDLE_HEIGHT, newY));
+const PongGame: React.FC = () => {
+    const [socket, setSocket] = useState<Socket | null>(null);
+    const gameStateRef = useRef<GameState>({
+        leftPaddleY: GAME_HEIGHT / 2 - PADDLE_HEIGHT / 2,
+        rightPaddleY: GAME_HEIGHT / 2 - PADDLE_HEIGHT / 2,
+        ballPosition: { x: GAME_WIDTH / 2 - BALL_SIZE / 2, y: GAME_HEIGHT / 2 - BALL_SIZE / 2 },
+        leftScore: 0,
+        rightScore: 0,
+        gameStatus: 'waiting',
+        connectedPlayers: []
     });
-  }, []);
+    const [, forceUpdate] = useState({});
+    const [player, setPlayer] = useState<'left' | 'right' | 'spectator' | null>(null);
 
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      switch (e.key) {
-        case 'w': movePaddle('left', -1); break;
-        case 's': movePaddle('left', 1); break;
-        case 'ArrowUp': movePaddle('right', -1); break;
-        case 'ArrowDown': movePaddle('right', 1); break;
-        default: break;
-      }
+    useEffect(() => {
+        const newSocket = io('http://your-server-ip:3001', {
+            reconnection: true,
+            reconnectionAttempts: 5,
+            reconnectionDelay: 1000
+        });
+        setSocket(newSocket);
+
+        newSocket.on('connect', () => {
+            console.log('Connected to server');
+        });
+
+        newSocket.on('disconnect', (reason) => {
+            console.log('Disconnected from server:', reason);
+        });
+
+        newSocket.on('playerAssignment', (assignedPlayer: 'left' | 'right' | 'spectator') => {
+            console.log('Assigned as:', assignedPlayer);
+            setPlayer(assignedPlayer);
+        });
+
+        newSocket.on('gameState', (newGameState: GameState) => {
+            console.log('Received new game state:', newGameState);
+            gameStateRef.current = newGameState;
+            forceUpdate({});
+        });
+
+        return () => {
+            newSocket.close();
+        };
+    }, []);
+
+    const movePaddle = useCallback((direction: number) => {
+        if (socket && player && player !== 'spectator') {
+            socket.emit('movePaddle', { player, direction });
+        }
+    }, [socket, player]);
+
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (player === 'left') {
+                if (e.key === 'w') movePaddle(-1);
+                if (e.key === 's') movePaddle(1);
+            } else if (player === 'right') {
+                if (e.key === 'ArrowUp') movePaddle(-1);
+                if (e.key === 'ArrowDown') movePaddle(1);
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [movePaddle, player]);
+
+    const renderConnectedPlayers = () => {
+        const { connectedPlayers } = gameStateRef.current;
+        return (
+            <div style={{ position: 'absolute', top: 5, right: 5, color: 'white', fontSize: '12px' }}>
+                <div>Connected Players:</div>
+                {connectedPlayers.map((player, index) => (
+                    <div key={index}>{player.position}: {player.id.slice(0, 6)}...</div>
+                ))}
+            </div>
+        );
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [movePaddle]);
+    const renderDebugInfo = () => {
+        const { gameStatus } = gameStateRef.current;
+        return (
+            <div style={{ position: 'absolute', top: 30, left: 5, color: 'white', fontSize: '12px' }}>
+                <div>Game Status: {gameStatus}</div>
+                <div>Player Role: {player || 'Not assigned'}</div>
+                {gameStatus === 'waiting' && (
+                    <div>Waiting for: {!player ? 'player assignment' : 'another player to join'}</div>
+                )}
+                <div>Connected to server: {socket?.connected ? 'Yes' : 'No'}</div>
+            </div>
+        );
+    };
 
-  const resetBall = useCallback(() => {
-    if (!isResetting) {
-      setIsResetting(true);
-      setBallPosition({ x: GAME_WIDTH / 2 - BALL_SIZE / 2, y: GAME_HEIGHT / 2 - BALL_SIZE / 2 });
-      setBallVelocity({ x: Math.random() > 0.5 ? 5 : -5, y: Math.random() > 0.5 ? 2 : -2 });
-      setTimeout(() => setIsResetting(false), 1000); // Prevent multiple resets within 1 second
-    }
-  }, [isResetting]);
-
-  useEffect(() => {
-    const gameLoop = setInterval(() => {
-      if (!isResetting) {
-        setBallPosition((prevPos) => {
-          let newX = prevPos.x + ballVelocity.x;
-          let newY = prevPos.y + ballVelocity.y;
-
-          // Handle paddle collisions
-          if (
-            (ballVelocity.x < 0 && newX <= PADDLE_WIDTH && newY + BALL_SIZE >= leftPaddleY && newY <= leftPaddleY + PADDLE_HEIGHT) ||
-            (ballVelocity.x > 0 && newX + BALL_SIZE >= GAME_WIDTH - PADDLE_WIDTH && newY + BALL_SIZE >= rightPaddleY && newY <= rightPaddleY + PADDLE_HEIGHT)
-          ) {
-            let paddleY = ballVelocity.x < 0 ? leftPaddleY : rightPaddleY;
-            let relativeIntersectY = (paddleY + (PADDLE_HEIGHT / 2)) - newY;
-            let normalizedRelativeIntersectionY = (relativeIntersectY / (PADDLE_HEIGHT / 2));
-            let bounceAngle = normalizedRelativeIntersectionY * (Math.PI / 4);
-
-            let speed = Math.sqrt(ballVelocity.x * ballVelocity.x + ballVelocity.y * ballVelocity.y);
-            let newVelX = speed * Math.cos(bounceAngle);
-            let newVelY = speed * -Math.sin(bounceAngle);
-
-            setBallVelocity({ x: ballVelocity.x > 0 ? -newVelX : newVelX, y: newVelY });
-            newX = ballVelocity.x < 0 ? PADDLE_WIDTH : GAME_WIDTH - PADDLE_WIDTH - BALL_SIZE;
-          }
-
-          // Handle top and bottom wall collisions
-          if (newY <= 0 || newY + BALL_SIZE >= GAME_HEIGHT) {
-            setBallVelocity(prev => ({ ...prev, y: -prev.y }));
-            newY = newY <= 0 ? 0 : GAME_HEIGHT - BALL_SIZE;
-          }
-
-          // Handle scoring
-          if (newX <= 0) {
-            setRightScore(prev => prev + 1);
-            resetBall();
-            return prevPos; // Keep the ball at its current position until reset
-          } else if (newX + BALL_SIZE >= GAME_WIDTH) {
-            setLeftScore(prev => prev + 1);
-            resetBall();
-            return prevPos; // Keep the ball at its current position until reset
-          }
-
-          return { x: newX, y: newY };
-        });
-      }
-    }, 1000 / 60); // 60 FPS
-
-    return () => clearInterval(gameLoop);
-  }, [ballVelocity, leftPaddleY, rightPaddleY, resetBall, isResetting]);
-
-  return (
-    <div
-      style={{
-        position: 'relative',
-        width: GAME_WIDTH,
-        height: GAME_HEIGHT,
-        backgroundColor: '#000',
-        overflow: 'hidden',
-      }}
-    >
-      <Paddle position="left" top={leftPaddleY} />
-      <Paddle position="right" top={rightPaddleY} />
-      <Ball x={ballPosition.x} y={ballPosition.y} />
-      <Scoreboard leftScore={leftScore} rightScore={rightScore} />
-    </div>
-  );
+    return (
+        <div
+            style={{
+                position: 'relative',
+                width: GAME_WIDTH,
+                height: GAME_HEIGHT,
+                backgroundColor: '#000',
+                overflow: 'hidden',
+            }}
+        >
+            {gameStateRef.current.gameStatus === 'playing' ? (
+                <>
+                    <Paddle position="left" top={gameStateRef.current.leftPaddleY} />
+                    <Paddle position="right" top={gameStateRef.current.rightPaddleY} />
+                    <Ball x={gameStateRef.current.ballPosition.x} y={gameStateRef.current.ballPosition.y} />
+                    <Scoreboard leftScore={gameStateRef.current.leftScore} rightScore={gameStateRef.current.rightScore} />
+                </>
+            ) : (
+                <div style={{ color: 'white', textAlign: 'center', paddingTop: '150px' }}>
+                    Waiting for players to join...
+                </div>
+            )}
+            {player && <div style={{ position: 'absolute', top: 5, left: 5, color: 'white' }}>You are the {player} player</div>}
+            {renderDebugInfo()}
+            {renderConnectedPlayers()}
+        </div>
+    );
 };
 
 export default PongGame;

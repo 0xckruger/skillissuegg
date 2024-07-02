@@ -19,10 +19,14 @@
     "@solana/wallet-adapter-react-ui": "^0.9.11",
     "@solana/wallet-adapter-wallets": "^0.16.9",
     "@solana/web3.js": "^1.50.1",
+    "@types/socket.io-client": "^3.0.0",
+    "express": "^4.19.2",
     "framer-motion": "^7.6.1",
     "next": "^12.2.3",
     "react": "^18.2.0",
-    "react-dom": "18.0.0"
+    "react-dom": "18.0.0",
+    "socket.io": "^4.7.5",
+    "socket.io-client": "^4.7.5"
   },
   "devDependencies": {
     "@types/node": "^17.0.23",
