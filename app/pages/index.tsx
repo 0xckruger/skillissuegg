@@ -17,9 +17,12 @@ const Home: NextPage = (props) => {
       <Head>
         <title>SkillIssueGG</title>
       </Head>
-      <Box h="calc(100vh)" w="full">
-        <Stack w="full" h="calc(100vh)">
-          <AppBar position="fixed" top={0} />
+      <Box>
+        <Box position="fixed" top={0} left={0} right={0} zIndex={1000}>
+          <AppBar />
+        </Box>
+        <Box paddingTop="32px"> {/* Adjust this value to match your AppBar height */}
+          <Stack w="full" minHeight="calc(100vh - 64px)"> {/* Adjust 64px to match your AppBar height */}
           <Tabs size='md' variant='soft-rounded' colorScheme="whiteAlpha" mt={16}>
           <TabList>
             <Tab>Pong</Tab>
@@ -37,6 +40,7 @@ const Home: NextPage = (props) => {
           </TabPanels>
           </Tabs>
         </Stack>
+      </Box>
       </Box>
     </div>
   );
