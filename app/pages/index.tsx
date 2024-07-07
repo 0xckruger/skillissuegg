@@ -21,15 +21,14 @@ const Home: NextPage = (props) => {
         <Box position="fixed" top={0} left={0} right={0} zIndex={1000}>
           <AppBar />
         </Box>
-        <Box paddingTop="32px"> {/* Adjust this value to match your AppBar height */}
-          <Stack w="full" minHeight="calc(100vh - 64px)"> {/* Adjust 64px to match your AppBar height */}
+        <Box paddingTop="32px">
+          <Stack w="full" minHeight="calc(100vh - 32px)">
           <Tabs size='md' variant='soft-rounded' colorScheme="whiteAlpha" mt={16}>
           <TabList>
             <Tab>Pong</Tab>
             <Tab>Tic-Tac-Toe</Tab>
           </TabList>
 
-          {/* We can define game components at each tab panel for desired page view */}
           <TabPanels>
             <TabPanel>
               <PongGame />

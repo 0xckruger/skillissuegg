@@ -4,7 +4,6 @@ import * as anchor from "@project-serum/anchor"
 import { Button, Grid, GridItem, Input, Text, VStack, HStack, Box } from "@chakra-ui/react"
 import idl from "../../target/idl/tictactoe.json"
 import { getErrorMessage } from '../errors'
-import {Transaction} from "@solana/web3.js";
 
 const PROGRAM_ID = new anchor.web3.PublicKey("6gGrR1fFAkYh6YdsbkrHGgy2jTTzcLKUr1Mzc4Cm17AG")
 
