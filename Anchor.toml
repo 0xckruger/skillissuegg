@@ -5,7 +5,10 @@ seeds = false
 skip-lint = false
 
 [programs.localnet]
-tictactoe = "39YeZsrCamsEh4rjrqGZ74iqEdUwSJAWZhdtkQdP6Tae"
+tictactoe = "6gGrR1fFAkYh6YdsbkrHGgy2jTTzcLKUr1Mzc4Cm17AG"
+
+[programs.devnet]
+tictactoe = "6gGrR1fFAkYh6YdsbkrHGgy2jTTzcLKUr1Mzc4Cm17AG"
 
 [registry]
 url = "https://api.apr.dev"
@@ -16,3 +19,5 @@ wallet = "/home/roman/.config/solana/id.json"
 
 [scripts]
 test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"
+
+# AJfVpgRnNYZKvvCqqpUKvYjs3e4qjNvGXZmikBDgUxGw == Idl Account

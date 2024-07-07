@@ -4,8 +4,9 @@ import * as anchor from "@project-serum/anchor"
 import { Button, Grid, GridItem, Input, Text, VStack, HStack, Box } from "@chakra-ui/react"
 import idl from "../../target/idl/tictactoe.json"
 import { getErrorMessage } from '../errors'
+import {Transaction} from "@solana/web3.js";
 
-const PROGRAM_ID = new anchor.web3.PublicKey("39YeZsrCamsEh4rjrqGZ74iqEdUwSJAWZhdtkQdP6Tae")
+const PROGRAM_ID = new anchor.web3.PublicKey("6gGrR1fFAkYh6YdsbkrHGgy2jTTzcLKUr1Mzc4Cm17AG")
 
 export const TicTacToe: FC = () => {
     const [game, setGame] = useState<anchor.web3.PublicKey | null>(null)
@@ -16,6 +17,7 @@ export const TicTacToe: FC = () => {
     const [program, setProgram] = useState<anchor.Program | null>(null)
     const [playerTwo, setPlayerTwo] = useState("")
     const [betAmount, setBetAmount] = useState("")
+    const [playerNumber, setPlayerNumber] = useState<number | null>(null)
 
     const { connection } = useConnection()
     const wallet = useAnchorWallet()
@@ -33,10 +35,29 @@ export const TicTacToe: FC = () => {
     }, [wallet, connection])
 
     useEffect(() => {
+        const determinePlayerNumber = () => {
+            if (gameState && wallet) {
+                const playerIndex = gameState.players.findIndex(
+                    (player) => player.toString() === wallet.publicKey.toString()
+                );
+                setPlayerNumber(playerIndex !== -1 ? playerIndex + 1 : null);
+            }
+        };
+
+        determinePlayerNumber();
+    }, [gameState, wallet]);
+
+    useEffect(() => {
         const fetchEscrowState = async () => {
-            if (program && escrow) {
+            if (program && game) {
                 try {
-                    const escrowData = await program.account.escrowAccount.fetch(escrow);
+                    const [escrowAccount] = anchor.web3.PublicKey.findProgramAddressSync(
+                        [Buffer.from("escrow"), game.toBuffer()],
+                        program.programId
+                    );
+                    const escrowData = await program.account.escrowAccount.fetch(escrowAccount);
+                    console.log("Fetched Escrow Data:", escrowData);
+                    setEscrow(escrowAccount);
                     setEscrowState(escrowData);
                 } catch (error) {
                     console.error("Error fetching escrow state:", error);
@@ -45,7 +66,7 @@ export const TicTacToe: FC = () => {
         };
 
         fetchEscrowState();
-    }, [program, escrow, gameState]);
+    }, [program, game, gameState]);
 
     const handleError = (error: any) => {
         console.error("Error:", error);
@@ -71,39 +92,59 @@ export const TicTacToe: FC = () => {
             );
 
             try {
-                const gameData = await program.account.ticTacToeGame.fetch(gameAccount);
-                console.log("Fetched existing game data:", gameData);
-                setGame(gameAccount);
-                setEscrow(escrowAccount);
-                setGameState(gameData);
-                return;
+                try {
+                    const gameData = await program.account.ticTacToeGame.fetch(gameAccount);
+                    console.log("Fetched existing game data. You're Player 1: ", gameData);
+                    setGame(gameAccount);
+                    setGameState(gameData);
+                    setEscrow(escrowAccount);
+                    return;
+                } catch {
+                    console.log("Couldn't fetch game data. Trying other side...")
+                    const playerOneKey = new anchor.web3.PublicKey(playerTwo);
+                    console.log("Player One: ", playerOneKey.toString());
+                    console.log("Player Two: ", wallet.publicKey.toString());
+                    const [gameAccount] = anchor.web3.PublicKey.findProgramAddressSync(
+                        [Buffer.from("tictactoe"), playerOneKey.toBuffer(), wallet.publicKey.toBuffer()],
+                        program.programId
+                    );
+                    const gameData = await program.account.ticTacToeGame.fetch(gameAccount);
+                    console.log("Fetched existing game data. You're Player 2: ", gameData);
+                    setGame(gameAccount);
+                    setGameState(gameData);
+                    setEscrow(escrowAccount);
+                    return;
+                }
             } catch {
-                console.log("No game found. Creating new game!");
+                console.log("No game found between the two players. Creating new game!")
             }
 
-            const tx = program.transaction.setupGame(
-                {
-                    accounts: {
+            try {
+                const tx = await program.methods.setupGame()
+                    .accounts({
                         game: gameAccount,
                         escrow: escrowAccount,
                         playerOne: wallet.publicKey,
                         playerTwo: playerTwoKey,
                         systemProgram: anchor.web3.SystemProgram.programId
-                    },
-                    signers: [],
-                }
-            )
-            tx.feePayer = wallet.publicKey
-            tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash
-            const signedTx = await wallet.signTransaction(tx)
-            const txId = await connection.sendRawTransaction(signedTx.serialize())
-            await connection.confirmTransaction(txId)
+                    })
+                    .transaction();
 
-            setGame(gameAccount)
-            setEscrow(escrowAccount)
-            const gameData = await program.account.ticTacToeGame.fetch(gameAccount);
-            setGameState(gameData)
-            console.log("Successfully set up a new game!")
+                tx.feePayer = wallet.publicKey;
+                tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
+                const signedTx = await wallet.signTransaction(tx);
+                const txId = await connection.sendRawTransaction(signedTx.serialize());
+                await connection.confirmTransaction(txId);
+
+                setGame(gameAccount);
+                setEscrow(escrowAccount);
+                const gameData = await program.account.ticTacToeGame.fetch(gameAccount);
+                setGameState(gameData);
+                console.log("Successfully set up a new game!");
+            } catch (error) {
+                console.error("Error setting up game:", error);
+                handleError(error);
+            }
         }
     }
 
@@ -234,6 +275,11 @@ export const TicTacToe: FC = () => {
             <Text fontSize="xl" fontWeight="bold" color="white">
                 Tic Tac Toe
             </Text>
+            {game && playerNumber !== null && (
+                <Text fontSize="lg" color="white">
+                    You are Player {playerNumber}
+                </Text>
+            )}
             {game ? (
                 <VStack spacing={4}>
                     {gameState && gameState.board ? (
@@ -265,8 +311,8 @@ export const TicTacToe: FC = () => {
                             {escrowState && (
                                 <Box color="white">
                                     <Text>Escrow Amounts:</Text>
-                                    <Text>Player 1: {escrowState.amount1.toNumber() / anchor.web3.LAMPORTS_PER_SOL} SOL</Text>
-                                    <Text>Player 2: {escrowState.amount2.toNumber() / anchor.web3.LAMPORTS_PER_SOL} SOL</Text>
+                                    <Text>Player 1 ({escrowState.playerOne.toBase58().slice(0, 3)}..{escrowState.playerOne.toBase58().slice(-3)}): {escrowState.amount1.toNumber() / anchor.web3.LAMPORTS_PER_SOL} SOL</Text>
+                                    <Text>Player 2: ({escrowState.playerTwo.toBase58().slice(0, 3)}..{escrowState.playerTwo.toBase58().slice(-3)}):  {escrowState.amount2.toNumber() / anchor.web3.LAMPORTS_PER_SOL} SOL</Text>
                                 </Box>
                             )}
                             {gameState.state.active && gameState.turn === 1 && (
