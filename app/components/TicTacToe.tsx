@@ -2,7 +2,7 @@ import {FC, useEffect, useState} from "react"
 import { useAnchorWallet, useConnection, useWallet } from "@solana/wallet-adapter-react"
 import * as anchor from "@project-serum/anchor"
 import { Button, Grid, GridItem, Input, Text, VStack, HStack, Box } from "@chakra-ui/react"
-import idl from "../../target/idl/tictactoe.json"
+import idl from "../idl.json"
 import { getErrorMessage } from '../errors'
 
 const PROGRAM_ID = new anchor.web3.PublicKey("6gGrR1fFAkYh6YdsbkrHGgy2jTTzcLKUr1Mzc4Cm17AG")

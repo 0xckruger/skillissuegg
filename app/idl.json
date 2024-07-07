@@ -1,40 +1,351 @@
 {
   "version": "0.1.0",
-  "name": "counter",
+  "name": "tictactoe",
   "instructions": [
     {
-      "name": "initialize",
+      "name": "setupGame",
       "accounts": [
-        { "name": "counter", "isMut": true, "isSigner": true },
-        { "name": "user", "isMut": true, "isSigner": true },
-        { "name": "systemProgram", "isMut": false, "isSigner": false }
+        {
+          "name": "game",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "escrow",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "playerOne",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "playerTwo",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
       ],
       "args": []
     },
     {
-      "name": "increment",
+      "name": "play",
       "accounts": [
-        { "name": "counter", "isMut": true, "isSigner": false },
-        { "name": "user", "isMut": false, "isSigner": true }
+        {
+          "name": "game",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "player",
+          "isMut": false,
+          "isSigner": true
+        }
+      ],
+      "args": [
+        {
+          "name": "tile",
+          "type": {
+            "defined": "Tile"
+          }
+        }
+      ]
+    },
+    {
+      "name": "deposit",
+      "accounts": [
+        {
+          "name": "game",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "user",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "escrow",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "withdraw",
+      "accounts": [
+        {
+          "name": "escrow",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "game",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "playerOne",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "playerTwo",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
       ],
       "args": []
     },
     {
-      "name": "decrement",
+      "name": "endGame",
       "accounts": [
-        { "name": "counter", "isMut": true, "isSigner": false },
-        { "name": "user", "isMut": false, "isSigner": true }
+        {
+          "name": "game",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "escrow",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "closer",
+          "isMut": true,
+          "isSigner": true
+        }
       ],
       "args": []
     }
   ],
   "accounts": [
     {
-      "name": "Counter",
+      "name": "EscrowAccount",
       "type": {
         "kind": "struct",
-        "fields": [{ "name": "count", "type": "u64" }]
+        "fields": [
+          {
+            "name": "amount1",
+            "type": "u64"
+          },
+          {
+            "name": "amount2",
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "playerOne",
+            "type": "publicKey"
+          },
+          {
+            "name": "playerTwo",
+            "type": "publicKey"
+          },
+          {
+            "name": "initialized",
+            "type": "bool"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TicTacToeGame",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "players",
+            "type": {
+              "array": [
+                "publicKey",
+                2
+              ]
+            }
+          },
+          {
+            "name": "turn",
+            "type": "u8"
+          },
+          {
+            "name": "board",
+            "type": {
+              "array": [
+                {
+                  "array": [
+                    {
+                      "option": {
+                        "defined": "Sign"
+                      }
+                    },
+                    3
+                  ]
+                },
+                3
+              ]
+            }
+          },
+          {
+            "name": "state",
+            "type": {
+              "defined": "GameState"
+            }
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
       }
     }
-  ]
+  ],
+  "types": [
+    {
+      "name": "Tile",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "row",
+            "type": "u8"
+          },
+          {
+            "name": "column",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "GameState",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Active"
+          },
+          {
+            "name": "Tie"
+          },
+          {
+            "name": "Won",
+            "fields": [
+              {
+                "name": "winner",
+                "type": "publicKey"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "Sign",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "X"
+          },
+          {
+            "name": "O"
+          }
+        ]
+      }
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "TileOutOfBounds",
+      "msg": "Tile coordinates are out of bounds"
+    },
+    {
+      "code": 6001,
+      "name": "TileAlreadySet",
+      "msg": "Tile has already been played"
+    },
+    {
+      "code": 6002,
+      "name": "GameAlreadyOver",
+      "msg": "Game is already over"
+    },
+    {
+      "code": 6003,
+      "name": "NotPlayersTurn",
+      "msg": "It's not this player's turn"
+    },
+    {
+      "code": 6004,
+      "name": "GameAlreadyStarted",
+      "msg": "Game has already started"
+    },
+    {
+      "code": 6005,
+      "name": "GameNotOver",
+      "msg": "Game is currently in play"
+    },
+    {
+      "code": 6006,
+      "name": "UnauthorizedUser",
+      "msg": "Unauthorized user"
+    },
+    {
+      "code": 6007,
+      "name": "AmountMismatch",
+      "msg": "Deposited amounts do not match"
+    },
+    {
+      "code": 6008,
+      "name": "InvalidPlayerOne",
+      "msg": "Invalid player one account"
+    },
+    {
+      "code": 6009,
+      "name": "InvalidPlayerTwo",
+      "msg": "Invalid player two account"
+    },
+    {
+      "code": 6010,
+      "name": "EscrowAlreadyInitialized",
+      "msg": "Escrow account is already initialized"
+    },
+    {
+      "code": 6011,
+      "name": "EscrowNotInitialized",
+      "msg": "Escrow account is not initialized"
+    },
+    {
+      "code": 6012,
+      "name": "EscrowFundsPresent",
+      "msg": "Escrowed funds still present, please withdraw"
+    }
+  ],
+  "metadata": {
+    "address": "6gGrR1fFAkYh6YdsbkrHGgy2jTTzcLKUr1Mzc4Cm17AG"
+  }
 }
