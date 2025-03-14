@@ -27,14 +27,22 @@ const Home: NextPage = (props) => {
           <TabList>
             <Tab>Pong</Tab>
             <Tab>Tic-Tac-Toe</Tab>
+            <Tab>Dodge The Creeps</Tab>
           </TabList>
-
           <TabPanels>
             <TabPanel>
               <PongGame />
             </TabPanel>
             <TabPanel>
               <TicTacToe />
+            </TabPanel>
+            <TabPanel>
+              <iframe 
+                src="/dodge-the-creeps/dodge-the-creeps.html" 
+                width="100%" 
+                height="600px" 
+                style={{ border: 'none' }}
+              />
             </TabPanel>
           </TabPanels>
           </Tabs>
